@@ -17,7 +17,7 @@ describe("workspace schema and defaults", () => {
   it("creates migration-ready defaults without fabricated usage", () => {
     const data = createDefaultWorkspace();
     expect(data.version).toBe(2);
-    expect(data.settings.theme).toBe("peach-bloom");
+    expect(data.settings.theme).toBe("default");
     expect(data.tools).toEqual([]);
     expect(data.aiModels).toEqual([]);
     expect(data.aiConversations).toEqual([]);
@@ -52,22 +52,22 @@ describe("workspace repository", () => {
     repository.subscribe(() => { notifications += 1; });
     repository.update((current) => ({
       ...current,
-      settings: { ...current.settings, theme: "ember" },
+      settings: { ...current.settings, reducedMotion: true },
     }));
-    expect(before.settings.theme).toBe("peach-bloom");
-    expect(repository.get().settings.theme).toBe("ember");
+    expect(before.settings.reducedMotion).toBe(false);
+    expect(repository.get().settings.reducedMotion).toBe(true);
     expect(notifications).toBe(1);
-    expect(JSON.parse(storage.getItem(STORAGE_KEY) ?? "{}").settings.theme).toBe("ember");
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) ?? "{}").settings.reducedMotion).toBe(true);
   });
 
   it("migrates legacy storage key to the new key on first read", () => {
     const legacy = createDefaultWorkspace();
-    legacy.settings.theme = "peach-bloom";
+    legacy.settings.reducedMotion = true;
     storage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(legacy));
     const repository = createWorkspaceRepository(storage);
     expect(repository.get().version).toBe(2);
     expect(storage.getItem(STORAGE_KEY)).not.toBeNull();
-    expect(JSON.parse(storage.getItem(STORAGE_KEY)!).settings.theme).toBe("peach-bloom");
+    expect(JSON.parse(storage.getItem(STORAGE_KEY)!).settings.reducedMotion).toBe(true);
   });
 
   it("ignores corrupted legacy payload and falls back to defaults", () => {

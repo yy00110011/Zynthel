@@ -6,8 +6,6 @@ import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
 import { useWorkspace } from "@/features/data/use-workspace";
 import { workspaceRepository } from "@/features/data/repository";
 import { exportWorkspace, importWorkspace } from "@/features/data/transfer";
-import { THEMES } from "@/features/themes/registry";
-import type { ThemeId } from "@/features/data/schema";
 import type { AiModelConfig } from "@/features/data/ai-schema";
 
 export function FinalSettings() {
@@ -86,13 +84,8 @@ export function FinalSettings() {
       <div className="settings-grid">
 
         <GlassPanel className="settings-card">
-          <SectionTitle><><Info /> 外观与主题</></SectionTitle>
-          <label>主题
-            <select aria-label="主题" value={data.settings.theme} onChange={(e) => patch({ theme: e.target.value as ThemeId })}>
-              {Object.entries(THEMES).map(([id, theme]) => <option key={id} value={id}>{theme.label}</option>)}
-            </select>
-          </label>
-          <label>自定义背景图<small>上传本地图片作为背景，保存在本机，不打包进 APK。</small></label>
+          <SectionTitle><><Info /> 外观</></SectionTitle>
+          <label>自定义背景图<small>上传本地图片作为首页背景，保存在本机，不打包进 APK，仅作用于首页。</small></label>
           <div className="bg-upload-row">
             <button className="primary-action" onClick={() => bgFile.current?.click()}><ImageIcon /> {data.settings.backgroundImage ? "更换背景图" : "上传背景图"}</button>
             {data.settings.backgroundImage && (

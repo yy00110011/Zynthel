@@ -36,7 +36,7 @@ describe("tool model", () => {
   });
 });
 
-it("ships three token-compatible themes", () => {
-  expect(Object.keys(THEMES)).toEqual(["peach-bloom", "dark-purple", "ember"]);
-  expect(new Set(Object.values(THEMES).map((theme) => Object.keys(theme.tokens).sort().join(","))).size).toBe(1);
+it("ships a single default theme", () => {
+  expect(Object.keys(THEMES)).toEqual(["default"]);
+  expect(Object.keys(THEMES.default.tokens)).toContain("base");
 });

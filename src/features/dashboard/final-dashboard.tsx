@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ArrowRight, CalendarDays, Code, Folder, Palette, Play, Plus, Smartphone, Terminal, Timer, GitBranch } from "lucide-react";
 import { useWorkspace } from "@/features/data/use-workspace";
 import { greetingFor } from "@/features/shell/mood";
@@ -37,7 +38,7 @@ export function FinalDashboard(){
   const projects=recentProjects(data).slice(0,3);
   const days=Array.from({length:35},(_,i)=>new Date(today.getFullYear(),today.getMonth(),i-today.getDay()+1));
   return <div className="final-home">
-    <div className="scene-artwork" aria-hidden="true"/>
+    <div className="scene-artwork" aria-hidden="true" style={data.settings.backgroundImage ? { backgroundImage: `url(${data.settings.backgroundImage})` } : undefined}/>
     <section className="final-greeting glass-light"><div><p>{now?greetingFor(now):"你好，"}</p><h1>让今天变得更有意义。</h1><span>专注于此刻，稳步向前。</span></div><div className="weather">{now&&(now.getHours()<6||now.getHours()>=18)?"🌙":"☀️"}<strong>—</strong><small>今日心情</small></div></section>
     <section className="today-panel glass-light"><header><h2>今日任务</h2><button><Plus/></button></header><p>{today.toLocaleDateString("zh-CN",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</p>{tasks.length?tasks.map(t=><button className="final-task" key={t.id} onClick={()=>workspaceRepository.set(toggleTodo(data,t.id))}><i>{t.completed?"✓":""}</i><span>{t.title}<small>{t.dueDate}</small></span></button>):<div className="final-empty">今天没有安排任务</div>}</section>
     <section className="calendar-panel glass-light"><header><CalendarDays/><h2>即将到来</h2></header><strong>{today.toLocaleDateString("zh-CN",{year:"numeric",month:"long"})}</strong><div className="mini-calendar">{["一","二","三","四","五","六","日"].map(x=><b key={x}>{x}</b>)}{days.map(d=><span className={d.toDateString()===today.toDateString()?"active":""} key={d.toISOString()}>{d.getDate()}</span>)}</div></section>
@@ -53,7 +54,7 @@ export function FinalDashboard(){
       <i className="app-tile app-tile-add"><Plus size={20}/></i>
       <span>添加</span>
     </button>}</div>{!data.tools.length&&<p className="apps-empty">还没有应用，点「添加」从本机里挑一个吧。</p>}</section>
-    <section className="focus-panel glass-light"><header><Timer/><h2>专注</h2></header><div className="focus-dial"><strong>25:00</strong><span>专注时间</span><button><Play/></button></div></section>
+    <Link href="/focus" className="focus-panel glass-light"><header><Timer/><h2>专注</h2></header><div className="focus-dial"><strong>25:00</strong><span>专注时间</span><button type="button" tabIndex={-1}><Play/></button></div></Link>
     {picker&&<AppPicker onClose={()=>setPicker(false)}/>}
   </div>
 }

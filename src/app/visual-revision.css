@@ -13,7 +13,12 @@
   z-index: 0;
   inset: 0;
   pointer-events: none;
-  background-image: url("/characters/zynthel-peach-bloom.png");
+  /* 默认无背景图时，用几何渐变铺满首页，避免右侧空洞；
+     用户上传背景图后由内联 style 覆盖 background-image。 */
+  background-image:
+    radial-gradient(circle at 78% 22%, rgba(255, 159, 190, .16), transparent 34%),
+    radial-gradient(circle at 12% 80%, rgba(150, 120, 220, .14), transparent 40%),
+    linear-gradient(150deg, #2a1c30 0%, #17101f 55%, #0d0b13 100%);
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;

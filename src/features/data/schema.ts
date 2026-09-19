@@ -20,7 +20,8 @@ import {
   aiConversationSchema,
 } from "./ai-schema";
 
-export const themeIdSchema = z.enum(["peach-bloom", "dark-purple", "ember"]);
+// 单一默认主题：不再提供多主题切换，theme 固定为 "default"。
+export const themeIdSchema = z.enum(["default"]);
 export type ThemeId = z.infer<typeof themeIdSchema>;
 
 const timestamp = z.string();
@@ -196,7 +197,7 @@ export function createDefaultWorkspace(
     focusSessions: [],
     tools: DEFAULT_TOOLS,
     settings: {
-      theme: "peach-bloom",
+      theme: "default",
       reducedMotion: false,
       projectRoot: "",
       preferredTerminal: "Terminal",
