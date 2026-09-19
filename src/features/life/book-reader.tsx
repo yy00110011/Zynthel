@@ -6,6 +6,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import * as pdfjs from "pdfjs-dist";
+import ePub from "epubjs";
 import { getBookFile, supportedFileType } from "@/lib/book-storage";
 
 export type ReaderTarget = { bookId: string; title: string; fileName: string };
@@ -140,15 +142,21 @@ function PdfEngine({ url, page, onPageCount, onError }: {
   url: string; page: number; onPageCount: (n: number) => void; onError: (msg: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pdfRef = useRef<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => Promise<void> }> } | null>(null);
+  // PDF document proxy（numPages/getPage）
+  const pdfRef = useRef<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => { promise: Promise<unknown>; cancel: () => void } }> } | null>(null);
+  // loading task（destroy 释放 worker + 文档）
+  const taskRef = useRef<{ destroy: () => Promise<void> } | null>(null);
+  // 当前 renderTask（cancel 释放渲染）
+  const renderTaskRef = useRef<{ promise: Promise<unknown>; cancel: () => void } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-        const doc = await pdfjs.getDocument({ url }).promise;
+        const task = pdfjs.getDocument({ url });
+        taskRef.current = task as unknown as typeof taskRef.current;
+        const doc = await task.promise;
         if (cancelled) return;
         pdfRef.current = doc as unknown as typeof pdfRef.current;
         onPageCount(doc.numPages);
@@ -156,7 +164,16 @@ function PdfEngine({ url, page, onPageCount, onError }: {
         if (!cancelled) onError("PDF 解析失败，文件可能已损坏。");
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      pdfRef.current = null;
+      // 卸载/切换时销毁 PDF loading task，释放 worker 与文档，避免资源泄漏
+      const task = taskRef.current;
+      if (task) {
+        taskRef.current = null;
+        void task.destroy().catch(() => { /* 忽略 destroy 失败 */ });
+      }
+    };
   }, [url, onPageCount, onError]);
 
   useEffect(() => {
@@ -165,18 +182,34 @@ function PdfEngine({ url, page, onPageCount, onError }: {
     if (!doc || !canvas || page < 1 || page > doc.numPages) return;
     let cancelled = false;
     (async () => {
-      const pdfPage = await doc.getPage(page);
-      const container = canvas.parentElement;
-      const fit = Math.min(1.6, Math.max(0.5, (container?.clientWidth ?? 600) / pdfPage.getViewport({ scale: 1 }).width));
-      const viewport = pdfPage.getViewport({ scale: fit * window.devicePixelRatio });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.style.width = `${Math.round(viewport.width / window.devicePixelRatio)}px`;
-      const ctx = canvas.getContext("2d");
-      if (!ctx || cancelled) return;
-      await pdfPage.render({ canvasContext: ctx, viewport });
+      try {
+        const pdfPage = await doc.getPage(page);
+        if (cancelled) return;
+        const container = canvas.parentElement;
+        const fit = Math.min(1.6, Math.max(0.5, (container?.clientWidth ?? 600) / pdfPage.getViewport({ scale: 1 }).width));
+        const viewport = pdfPage.getViewport({ scale: fit * window.devicePixelRatio });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.width = `${Math.round(viewport.width / window.devicePixelRatio)}px`;
+        const ctx = canvas.getContext("2d");
+        if (!ctx || cancelled) return;
+        const renderTask = pdfPage.render({ canvasContext: ctx, viewport });
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;
+      } catch {
+        // cancel 会抛 RenderingCancelledException，正常翻页/卸载场景下忽略
+        // 真正的渲染失败已由 pdf.js 内部处理，这里不重复上报
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // 页面切换或卸载时取消进行中的渲染，避免并发渲染 + 资源泄漏
+      const task = renderTaskRef.current;
+      if (task) {
+        renderTaskRef.current = null;
+        try { task.cancel(); } catch { /* 忽略 cancel 异常 */ }
+      }
+    };
   }, [page, url]);
 
   return <div className="book-reader-body pdf-body"><canvas ref={canvasRef} /></div>;
@@ -194,7 +227,6 @@ function EpubEngine({ url, onPercent, onError }: {
     let cleanup: (() => void) | null = null;
     (async () => {
       try {
-        const ePub = (await import("epubjs")).default;
         const book = ePub(url);
         if (cancelled || !hostRef.current) return;
         const rendition = book.renderTo(hostRef.current, { width: "100%", height: "100%", spread: "none", flow: "paginated" });

@@ -32,6 +32,8 @@ function openDb(): Promise<IDBDatabase> {
       reject(normalizeError(err, "本地存储不可用"));
     }
   });
+  // 打开失败时清除缓存的 Promise，允许下一次操作重新尝试打开（避免一次失败后永久无法重试）。
+  dbPromise.catch(() => { dbPromise = null; });
   return dbPromise;
 }
 
@@ -84,18 +86,31 @@ export function supportedFileType(fileName: string): "pdf" | "epub" | "txt" | nu
   return null;
 }
 
-/** 写入多个书籍文件；若任一失败，删除本轮已写入的文件并抛错（保证不写一半）。 */
+/** 写入多个书籍文件；若任一失败，回滚到写入前状态（原有文件恢复、新增文件删除）并抛错。 */
 export async function putBookFiles(files: { bookId: string; blob: Blob }[]): Promise<void> {
+  // 写入前保存每个 bookId 的旧 Blob（若原来就有文件），供失败回滚时恢复。
+  const previous = new Map<string, Blob | undefined>();
   const written: string[] = [];
   try {
     for (const f of files) {
+      // 记录旧值（仅对尚未记录过的 bookId，避免重复读取）
+      if (!previous.has(f.bookId)) {
+        previous.set(f.bookId, await getBookFile(f.bookId));
+      }
       await putBookFile(f.bookId, f.blob);
       written.push(f.bookId);
     }
   } catch (err) {
-    // 回滚：删除本轮已写入的文件
+    // 回滚：恢复到写入前状态。
     for (const id of written) {
-      try { await deleteBookFile(id); } catch { /* 尽力回滚，忽略回滚失败 */ }
+      const old = previous.get(id);
+      try {
+        if (old !== undefined) {
+          await putBookFile(id, old); // 原来有文件 → 恢复旧 Blob
+        } else {
+          await deleteBookFile(id); // 原来没有文件 → 删除本轮新增文件
+        }
+      } catch { /* 尽力回滚，忽略回滚失败 */ }
     }
     throw normalizeError(err, "写入本地书库失败");
   }

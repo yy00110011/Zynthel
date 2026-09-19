@@ -30,8 +30,8 @@ const BACKUP_MARKER = "zynthel-full-backup";
 // 恢复备份的资源限制（Android 平板合理默认，防止超大备份一次性载入内存导致 OOM）
 const MAX_BACKUP_ZIP_BYTES = 200 * 1024 * 1024; // ZIP 文件总大小上限 200MB
 const MAX_BACKUP_FILES = 500; // 书籍文件数量上限
-const MAX_BACKUP_FILE_BYTES = 50 * 1024 * 1024; // 单个书籍文件解压上限 50MB
-const MAX_BACKUP_TOTAL_BYTES = 300 * 1024 * 1024; // 全部书籍文件解压总量上限 300MB
+const MAX_BACKUP_FILE_BYTES = 40 * 1024 * 1024; // 单个书籍文件解压上限 40MB
+const MAX_BACKUP_TOTAL_BYTES = 150 * 1024 * 1024; // 全部书籍文件解压总量上限 150MB
 
 export type FullBackupParseError =
   | "invalid-zip"

@@ -68,11 +68,26 @@ export const courseSchema = z.object({
   createdAt: timestamp,
 });
 
+// 严格 YYYY-MM-DD 日期：格式合法 + 真实日历日期（拒绝 2026-02-30 等非法日期）。
+const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}, { message: "必须是有效的 YYYY-MM-DD 日期" });
+
 export const termSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1).max(60),
-  startDate: z.string(),
-  endDate: z.string(),
+  startDate: dateStringSchema,
+  endDate: dateStringSchema,
+}).superRefine((term, ctx) => {
+  if (term.endDate < term.startDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["endDate"],
+      message: "结束日期不能早于开始日期",
+    });
+  }
 });
 
 /* ===== 习惯打卡 habits ===== */
