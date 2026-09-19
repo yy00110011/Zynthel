@@ -1,18 +1,16 @@
 # Zynthel（SOLARIS 开源版）—— 后端源码审查包
 
-> 生成时间：2026-09-19 18:32
+> 生成时间：2026-09-19 18:44
 > 用途：交给第三方 AI 做后端代码安全 / 正确性 / 稳定性审查。
 > 技术栈：Next.js + Tauri 2（Rust 原生层 + Kotlin Android 插件）+ Web Crypto + IndexedDB。
 > 平台定位：Android 平板（本地优先工作台）。
 > 开源版：已更名 Zynthel（商标去风险），无 Obsidian 集成、无境外 AI 服务，可公开。
 > 包名：`com.zynthel.workspace`。
 
-> ⚠️ 已知待同步项（内测版已修复、开源版尚未同步）：
-> 1. **阅读器「文件已损坏」**：`book-reader.tsx` 仍为动态 `import("pdfjs-dist")` / `import("epubjs")`，
->    在 Turbopack `output:"export"` 下动态 import 的 chunk 构建时未生成，运行时模块找不到 →
->    被 catch 成「文件已损坏」。修复方式：改顶部静态 import（内测版已改，commit d92ce6b）。
-> 2. **CSP 缺 worker-src**：`tauri.conf.json` 的 CSP 无 `worker-src`，pdf.js module worker 可能被拦截。
->    修复方式：加 `worker-src 'self' blob:` + `script-src 'self' blob:`（内测版已改）。
+> 本轮最新修复（2026-09-19，commit 50a168f，已与内测版同步）：
+> 1. **阅读器修复**：`book-reader.tsx` 动态 import 改顶部静态 import + CSP 补 worker-src。
+> 2. **备份恢复回滚保旧文件**、**降低内存上限(40MB/150MB)**、**PDF 资源释放(destroy/cancel)**、
+>    **IndexedDB 打开失败重试**、**termSchema 严格日期校验 + endDate>=startDate**。
 
 ---
 
@@ -482,7 +480,7 @@ fn main() {
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https: http://127.0.0.1:47135 ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https: http://127.0.0.1:47135 ipc: http://ipc.localhost",
       "capabilities": ["default"]
     }
   },
@@ -885,11 +883,26 @@ export const courseSchema = z.object({
   createdAt: timestamp,
 });
 
+// 严格 YYYY-MM-DD 日期：格式合法 + 真实日历日期（拒绝 2026-02-30 等非法日期）。
+const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}, { message: "必须是有效的 YYYY-MM-DD 日期" });
+
 export const termSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1).max(60),
-  startDate: z.string(),
-  endDate: z.string(),
+  startDate: dateStringSchema,
+  endDate: dateStringSchema,
+}).superRefine((term, ctx) => {
+  if (term.endDate < term.startDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["endDate"],
+      message: "结束日期不能早于开始日期",
+    });
+  }
 });
 
 /* ===== 习惯打卡 habits ===== */
@@ -1090,8 +1103,8 @@ const BACKUP_MARKER = "zynthel-full-backup";
 // 恢复备份的资源限制（Android 平板合理默认，防止超大备份一次性载入内存导致 OOM）
 const MAX_BACKUP_ZIP_BYTES = 200 * 1024 * 1024; // ZIP 文件总大小上限 200MB
 const MAX_BACKUP_FILES = 500; // 书籍文件数量上限
-const MAX_BACKUP_FILE_BYTES = 50 * 1024 * 1024; // 单个书籍文件解压上限 50MB
-const MAX_BACKUP_TOTAL_BYTES = 300 * 1024 * 1024; // 全部书籍文件解压总量上限 300MB
+const MAX_BACKUP_FILE_BYTES = 40 * 1024 * 1024; // 单个书籍文件解压上限 40MB
+const MAX_BACKUP_TOTAL_BYTES = 150 * 1024 * 1024; // 全部书籍文件解压总量上限 150MB
 
 export type FullBackupParseError =
   | "invalid-zip"
@@ -1490,6 +1503,8 @@ function openDb(): Promise<IDBDatabase> {
       reject(normalizeError(err, "本地存储不可用"));
     }
   });
+  // 打开失败时清除缓存的 Promise，允许下一次操作重新尝试打开（避免一次失败后永久无法重试）。
+  dbPromise.catch(() => { dbPromise = null; });
   return dbPromise;
 }
 
@@ -1542,18 +1557,31 @@ export function supportedFileType(fileName: string): "pdf" | "epub" | "txt" | nu
   return null;
 }
 
-/** 写入多个书籍文件；若任一失败，删除本轮已写入的文件并抛错（保证不写一半）。 */
+/** 写入多个书籍文件；若任一失败，回滚到写入前状态（原有文件恢复、新增文件删除）并抛错。 */
 export async function putBookFiles(files: { bookId: string; blob: Blob }[]): Promise<void> {
+  // 写入前保存每个 bookId 的旧 Blob（若原来就有文件），供失败回滚时恢复。
+  const previous = new Map<string, Blob | undefined>();
   const written: string[] = [];
   try {
     for (const f of files) {
+      // 记录旧值（仅对尚未记录过的 bookId，避免重复读取）
+      if (!previous.has(f.bookId)) {
+        previous.set(f.bookId, await getBookFile(f.bookId));
+      }
       await putBookFile(f.bookId, f.blob);
       written.push(f.bookId);
     }
   } catch (err) {
-    // 回滚：删除本轮已写入的文件
+    // 回滚：恢复到写入前状态。
     for (const id of written) {
-      try { await deleteBookFile(id); } catch { /* 尽力回滚，忽略回滚失败 */ }
+      const old = previous.get(id);
+      try {
+        if (old !== undefined) {
+          await putBookFile(id, old); // 原来有文件 → 恢复旧 Blob
+        } else {
+          await deleteBookFile(id); // 原来没有文件 → 删除本轮新增文件
+        }
+      } catch { /* 尽力回滚，忽略回滚失败 */ }
     }
     throw normalizeError(err, "写入本地书库失败");
   }
@@ -1669,6 +1697,8 @@ export function isTauriRuntime(): boolean {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import * as pdfjs from "pdfjs-dist";
+import ePub from "epubjs";
 import { getBookFile, supportedFileType } from "@/lib/book-storage";
 
 export type ReaderTarget = { bookId: string; title: string; fileName: string };
@@ -1803,15 +1833,21 @@ function PdfEngine({ url, page, onPageCount, onError }: {
   url: string; page: number; onPageCount: (n: number) => void; onError: (msg: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pdfRef = useRef<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => Promise<void> }> } | null>(null);
+  // PDF document proxy（numPages/getPage）
+  const pdfRef = useRef<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => { promise: Promise<unknown>; cancel: () => void } }> } | null>(null);
+  // loading task（destroy 释放 worker + 文档）
+  const taskRef = useRef<{ destroy: () => Promise<void> } | null>(null);
+  // 当前 renderTask（cancel 释放渲染）
+  const renderTaskRef = useRef<{ promise: Promise<unknown>; cancel: () => void } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-        const doc = await pdfjs.getDocument({ url }).promise;
+        const task = pdfjs.getDocument({ url });
+        taskRef.current = task as unknown as typeof taskRef.current;
+        const doc = await task.promise;
         if (cancelled) return;
         pdfRef.current = doc as unknown as typeof pdfRef.current;
         onPageCount(doc.numPages);
@@ -1819,7 +1855,16 @@ function PdfEngine({ url, page, onPageCount, onError }: {
         if (!cancelled) onError("PDF 解析失败，文件可能已损坏。");
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      pdfRef.current = null;
+      // 卸载/切换时销毁 PDF loading task，释放 worker 与文档，避免资源泄漏
+      const task = taskRef.current;
+      if (task) {
+        taskRef.current = null;
+        void task.destroy().catch(() => { /* 忽略 destroy 失败 */ });
+      }
+    };
   }, [url, onPageCount, onError]);
 
   useEffect(() => {
@@ -1828,18 +1873,34 @@ function PdfEngine({ url, page, onPageCount, onError }: {
     if (!doc || !canvas || page < 1 || page > doc.numPages) return;
     let cancelled = false;
     (async () => {
-      const pdfPage = await doc.getPage(page);
-      const container = canvas.parentElement;
-      const fit = Math.min(1.6, Math.max(0.5, (container?.clientWidth ?? 600) / pdfPage.getViewport({ scale: 1 }).width));
-      const viewport = pdfPage.getViewport({ scale: fit * window.devicePixelRatio });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.style.width = `${Math.round(viewport.width / window.devicePixelRatio)}px`;
-      const ctx = canvas.getContext("2d");
-      if (!ctx || cancelled) return;
-      await pdfPage.render({ canvasContext: ctx, viewport });
+      try {
+        const pdfPage = await doc.getPage(page);
+        if (cancelled) return;
+        const container = canvas.parentElement;
+        const fit = Math.min(1.6, Math.max(0.5, (container?.clientWidth ?? 600) / pdfPage.getViewport({ scale: 1 }).width));
+        const viewport = pdfPage.getViewport({ scale: fit * window.devicePixelRatio });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.width = `${Math.round(viewport.width / window.devicePixelRatio)}px`;
+        const ctx = canvas.getContext("2d");
+        if (!ctx || cancelled) return;
+        const renderTask = pdfPage.render({ canvasContext: ctx, viewport });
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;
+      } catch {
+        // cancel 会抛 RenderingCancelledException，正常翻页/卸载场景下忽略
+        // 真正的渲染失败已由 pdf.js 内部处理，这里不重复上报
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // 页面切换或卸载时取消进行中的渲染，避免并发渲染 + 资源泄漏
+      const task = renderTaskRef.current;
+      if (task) {
+        renderTaskRef.current = null;
+        try { task.cancel(); } catch { /* 忽略 cancel 异常 */ }
+      }
+    };
   }, [page, url]);
 
   return <div className="book-reader-body pdf-body"><canvas ref={canvasRef} /></div>;
@@ -1857,7 +1918,6 @@ function EpubEngine({ url, onPercent, onError }: {
     let cleanup: (() => void) | null = null;
     (async () => {
       try {
-        const ePub = (await import("epubjs")).default;
         const book = ePub(url);
         if (cancelled || !hostRef.current) return;
         const rendition = book.renderTo(hostRef.current, { width: "100%", height: "100%", spread: "none", flow: "paginated" });
@@ -2188,5 +2248,5 @@ class MainActivity : TauriActivity() {
 
 ### 与内测版差异（供对比审查）
 - 开源版包名 `com.zynthel.workspace`；内测版 `com.solaris.personal_terminal`。
-- 开源版阅读器动态 import 未修复 + CSP 无 worker-src（见顶部 ⚠️）；内测版已修复。
 - 开源版无 vault-page.tsx / themes/registry.ts / Obsidian 集成。
+- 其余后端逻辑（阅读器/备份/IndexedDB/termSchema）已与内测版同步一致。
