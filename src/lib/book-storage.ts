@@ -70,12 +70,16 @@ export async function getAllBookFiles(): Promise<{ bookId: string; blob: Blob }[
     const tx = db.transaction(STORE, "readonly");
     const store = tx.objectStore(STORE);
     const result: { bookId: string; blob: Blob }[] = [];
+    let cursorDone = false;
+    // 与 runTx() 保持一致：request 成功不等于事务已提交，只有 oncomplete 才判定成功。
+    tx.oncomplete = () => { if (cursorDone) resolve(result); };
     tx.onerror = () => reject(normalizeError(tx.error, "遍历本地书库失败"));
     tx.onabort = () => reject(normalizeError(tx.error, "遍历本地书库失败"));
     const cursorRequest = store.openCursor();
     cursorRequest.onsuccess = () => {
       const cursor = cursorRequest.result;
-      if (!cursor) { resolve(result); return; }
+      // 遍历结束只标记读取完成，真正的成功判定交给 transaction.oncomplete
+      if (!cursor) { cursorDone = true; return; }
       result.push({ bookId: String(cursor.key), blob: cursor.value as Blob });
       cursor.continue();
     };

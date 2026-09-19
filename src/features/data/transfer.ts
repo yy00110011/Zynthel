@@ -81,10 +81,14 @@ export async function parseFullBackup(file: Blob): Promise<FullBackupParseResult
   const parsed = workspaceSchema.safeParse(manifest.workspace);
   if (!parsed.success) return { ok: false, error: "unsupported-data" };
 
-  // 2. 合法的 bookId 集合（仅恢复 workspace.books 中存在的书籍对应的文件）
-  const validBookIds = new Set(parsed.data.books.map((b) => b.id));
+  // 2. 合法书籍映射：只恢复 workspace.books 中 source==="file" 且 fileName 非空的书籍。
+  //    source==="manual"（手动录入）没有本地文件；fileName 为空说明元数据与文件不一致。
+  const bookFileNames = new Map<string, string>();
+  for (const book of parsed.data.books) {
+    if (book.source === "file" && book.fileName) bookFileNames.set(book.id, book.fileName);
+  }
 
-  // 3. 遍历 books/ 目录：只收集合法 bookId、无重复、文件名安全的条目
+  // 3. 遍历 books/ 目录：bookId 合法 + source 为 file + 文件名与元数据一致 + 无重复 + 文件名安全
   const entries: { bookId: string; fileName: string; entry: import("jszip").JSZipObject }[] = [];
   const seenBookIds = new Set<string>();
   zip.folder("books")?.forEach((relativePath: string, entry: import("jszip").JSZipObject) => {
@@ -92,12 +96,16 @@ export async function parseFullBackup(file: Blob): Promise<FullBackupParseResult
     const sep = relativePath.indexOf("__");
     const bookId = sep > 0 ? relativePath.slice(0, sep) : relativePath;
     const fileName = sep > 0 ? relativePath.slice(sep + 2) : relativePath;
-    // 忽略孤儿文件：bookId 不在 workspace.books 中
-    if (!validBookIds.has(bookId)) return;
-    // 防止重复 bookId：同一本书只取第一个文件
-    if (seenBookIds.has(bookId)) return;
+    // 忽略孤儿文件 / source!=="file" / fileName 为空的书籍
+    const rawFileName = bookFileNames.get(bookId);
+    if (rawFileName === undefined) return;
     // 异常文件名（含路径分隔符等）直接忽略
     if (!fileName || fileName.length > 200 || /[\\/]/.test(fileName)) return;
+    // ZIP 条目文件名必须与元数据中的 fileName 一致（用打包时同样的清洗规则，保证旧备份可恢复），
+    // 避免元数据与 Blob 不一致
+    if (fileName !== rawFileName.replace(/[/\\]/g, "_")) return;
+    // 防止重复 bookId：同一本书只取第一个合法文件
+    if (seenBookIds.has(bookId)) return;
     seenBookIds.add(bookId);
     entries.push({ bookId, fileName, entry });
   });
