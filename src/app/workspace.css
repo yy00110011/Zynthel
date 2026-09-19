@@ -1,0 +1,13 @@
+.todo-row > button {
+  border: 0;
+  background: none;
+  padding: 2px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.todo-row > button svg {
+  width: 13px;
+  height: 13px;
+}

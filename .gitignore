@@ -1,0 +1,34 @@
+node_modules/
+.next/
+out/
+src-tauri/target/
+coverage/
+playwright-report/
+test-results/
+.planning/
+.DS_Store
+*.log
+*.tsbuildinfo
+work/
+
+# 环境变量与密钥
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# IDE 配置
+.idea/
+.vscode/
+*.swp
+
+# Android 构建产物与签名材料
+src-tauri/gen/android/build/
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/local.properties
+src-tauri/gen/android/keystore.properties
+*.jks
+*.keystore
+

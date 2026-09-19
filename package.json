@@ -1,0 +1,47 @@
+{
+  "name": "solaris-personal-resonance-terminal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n web,launcher \"pnpm dev:web\" \"pnpm dev:launcher\"",
+    "dev:web": "next dev -H 127.0.0.1",
+    "dev:launcher": "node scripts/launcher-server.mjs",
+    "build": "next build",
+    "start": "pnpm dev:web",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "framer-motion": "latest",
+    "lucide-react": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "@tailwindcss/postcss": "latest",
+    "@tauri-apps/cli": "^2.11.4",
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
+    "@testing-library/user-event": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "latest",
+    "jsdom": "latest",
+    "tailwindcss": "latest",
+    "typescript": "^5.9.0",
+    "vitest": "latest"
+  },
+  "packageManager": "pnpm@11.19.0"
+}

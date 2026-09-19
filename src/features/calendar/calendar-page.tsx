@@ -1,0 +1,4 @@
+"use client";
+import { useWorkspace } from "@/features/data/use-workspace";
+import { GlassPanel } from "@/components/ui/glass-panel";
+export function CalendarPage(){const data=useWorkspace();const now=new Date();const days=Array.from({length:35},(_,i)=>new Date(now.getFullYear(),now.getMonth(),i-now.getDay()+1));return <div className="page-stack"><header className="page-heading"><p>本地日程</p><h1>日历</h1><span>{now.toLocaleDateString("zh-CN",{year:"numeric",month:"long"})}</span></header><GlassPanel className="calendar-grid">{days.map(day=>{const iso=day.toLocaleDateString("sv-SE");const tasks=data.todos.filter(t=>t.dueDate===iso);return <div className={iso===now.toLocaleDateString("sv-SE")?"today":""} key={iso}><strong>{day.getDate()}</strong>{tasks.slice(0,3).map(t=><span key={t.id}>{t.title}</span>)}</div>})}</GlassPanel></div>}

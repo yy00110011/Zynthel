@@ -1,0 +1,7 @@
+"use client";
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { GlassPanel } from "@/components/ui/glass-panel";
+import { useWorkspace } from "@/features/data/use-workspace";
+import { workspaceRepository } from "@/features/data/repository";
+export function NotesPage(){const data=useWorkspace();const[selected,setSelected]=useState(data.notes[0]?.id??null);const note=data.notes.find(n=>n.id===selected);const add=()=>{const now=new Date().toISOString(),id=crypto.randomUUID();workspaceRepository.update(d=>({...d,notes:[{id,title:"新笔记",content:"",projectId:null,tags:[],createdAt:now,updatedAt:now},...d.notes]}));setSelected(id)};const patch=(value:string)=>note&&workspaceRepository.update(d=>({...d,notes:d.notes.map(n=>n.id===note.id?{...n,content:value,updatedAt:new Date().toISOString()}:n)}));return <div className="page-stack"><header className="page-heading"><p>快速记录</p><h1>笔记</h1><span>轻量记录，随写随存，本地持久保存。</span></header><GlassPanel className="notes-layout"><aside><button className="primary-action" onClick={add}><Plus/>新建笔记</button>{data.notes.map(n=><button className={n.id===selected?"active":""} key={n.id} onClick={()=>setSelected(n.id)}>{n.title}</button>)}</aside><main>{note?<><input value={note.title} onChange={e=>workspaceRepository.update(d=>({...d,notes:d.notes.map(n=>n.id===note.id?{...n,title:e.target.value}:n)}))}/><textarea value={note.content} onChange={e=>patch(e.target.value)} placeholder="记录此刻的想法…"/></>:<div className="empty-compact">当前频段未找到共鸣。</div>}</main></GlassPanel></div>}

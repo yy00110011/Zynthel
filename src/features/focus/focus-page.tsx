@@ -1,0 +1,5 @@
+"use client";
+import { useEffect, useState } from "react";
+import { GlassPanel } from "@/components/ui/glass-panel";
+import { useWorkspace } from "@/features/data/use-workspace";
+export function FocusPage(){const data=useWorkspace();const[seconds,setSeconds]=useState(data.settings.focusDuration*60);const[running,setRunning]=useState(false);useEffect(()=>{if(!running)return;const id=setInterval(()=>setSeconds(v=>{if(v<=1){setRunning(false);return 0}return v-1}),1000);return()=>clearInterval(id)},[running]);const fmt=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;return <div className="focus-zen"><GlassPanel><p>专注模式</p><strong>{fmt}</strong><select><option>不绑定任务</option>{data.todos.filter(t=>!t.completed).map(t=><option key={t.id}>{t.title}</option>)}</select><div><button onClick={()=>setRunning(!running)}>{running?"暂停":"开始"}</button><button onClick={()=>{setRunning(false);setSeconds(data.settings.focusDuration*60)}}>重置</button></div></GlassPanel></div>}
