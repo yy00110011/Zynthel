@@ -44,3 +44,5 @@ src-tauri/gen/android.bak*/
 # 开发预览截图
 screenshots/
 
+*.jks.old
+*.jks.bak
