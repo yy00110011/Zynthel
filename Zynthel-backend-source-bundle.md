@@ -1,68 +1,108 @@
-# Zynthel 后端源码审查包
+# Zynthel（SOLARIS 开源版）—— 后端源码审查包
 
-> 生成时间：2026-09-19 13:30（最新：含课程表周次/应用内阅读器/完整备份/IndexedDB 文件存储）
-
-> 用途：交给第三方 AI 做后端代码安全/稳定性审查。
-
+> 生成时间：2026-09-19 18:32
+> 用途：交给第三方 AI 做后端代码安全 / 正确性 / 稳定性审查。
 > 技术栈：Next.js + Tauri 2（Rust 原生层 + Kotlin Android 插件）+ Web Crypto + IndexedDB。
-
 > 平台定位：Android 平板（本地优先工作台）。
+> 开源版：已更名 Zynthel（商标去风险），无 Obsidian 集成、无境外 AI 服务，可公开。
+> 包名：`com.zynthel.workspace`。
 
-
-## 目录
-
-1. `src-tauri/src/launch.rs` — Rust 原生层：启动资源、URL 校验、应用枚举、IPC 命令
-
-2. `src-tauri/src/lib.rs` — Rust 插件注册（register_android_plugin）
-
-3. `src-tauri/src/main.rs` — Rust 入口
-
-4. `src-tauri/Cargo.toml` — Rust 依赖清单
-
-5. `src-tauri/tauri.conf.json` — Tauri 配置（productName/identifier/CSP）
-
-6. `src-tauri/capabilities/default.json` — Tauri 权限能力
-
-7. `src-tauri/gen/android/app/src/main/java/com/zynthel/workspace/LaunchPlugin.kt` — Kotlin Android 插件：启动应用/打开网址/枚举应用
-
-8. `src-tauri/gen/android/app/src/main/java/com/zynthel/workspace/MainActivity.kt` — Kotlin 主 Activity
-
-9. `src-tauri/gen/android/app/src/main/AndroidManifest.xml` — Android 权限与组件清单
-
-10. `src/features/data/schema.ts` — 数据契约（workspace/settings/工具/启动方式）
-
-11. `src/features/data/life-schema.ts` — 生活工具 schema（课程含 weeks 1-20、书籍含 source/fileName、vault 加密字段）
-
-12. `src/features/data/repository.ts` — 数据仓库（localStorage + storage key 迁移）
-
-13. `src/features/data/transfer.ts` — 数据导入导出 + 完整备份（ZIP：workspace JSON + 书籍文件，jszip）
-
-14. `src/features/data/crypto.ts` — 密码本加密（AES-GCM + PBKDF2 + 密码生成）
-
-15. `src/features/data/ai-schema.ts` — AI 模型配置 schema
-
-16. `src/features/ai/ai-client.ts` — AI 客户端（fetch + 60s 超时）
-
-17. `src/lib/book-storage.ts` — 【新增】书籍文件 IndexedDB 存储（blob 读写/遍历/删除）
-
-18. `src/lib/installed-apps.ts` — 应用枚举前端封装（区分空/失败）
-
-19. `src/lib/desktop-launch.ts` — 启动资源前端封装
-
-20. `src/lib/open-launch.ts` — 启动入口
-
-21. `src/lib/runtime.ts` — 运行时检测
-
+> ⚠️ 已知待同步项（内测版已修复、开源版尚未同步）：
+> 1. **阅读器「文件已损坏」**：`book-reader.tsx` 仍为动态 `import("pdfjs-dist")` / `import("epubjs")`，
+>    在 Turbopack `output:"export"` 下动态 import 的 chunk 构建时未生成，运行时模块找不到 →
+>    被 catch 成「文件已损坏」。修复方式：改顶部静态 import（内测版已改，commit d92ce6b）。
+> 2. **CSP 缺 worker-src**：`tauri.conf.json` 的 CSP 无 `worker-src`，pdf.js module worker 可能被拦截。
+>    修复方式：加 `worker-src 'self' blob:` + `script-src 'self' blob:`（内测版已改）。
 
 ---
 
+## 目录
 
-## src-tauri/src/launch.rs
+1. `src-tauri/src/main.rs`
+2. `src-tauri/src/lib.rs`
+3. `src-tauri/src/launch.rs`
+4. `src-tauri/Cargo.toml`
+5. `src-tauri/build.rs`
+6. `src-tauri/tauri.conf.json`
+7. `src-tauri/capabilities/default.json`
+8. `src-tauri/gen/android/app/src/main/AndroidManifest.xml`
+9. `src/features/data/schema.ts`
+10. `src/features/data/life-schema.ts`
+11. `src/features/data/repository.ts`
+12. `src/features/data/transfer.ts`
+13. `src/features/data/crypto.ts`
+14. `src/features/data/ai-schema.ts`
+15. `src/features/ai/ai-client.ts`
+16. `src/lib/book-storage.ts`
+17. `src/lib/installed-apps.ts`
+18. `src/lib/open-launch.ts`
+19. `src/lib/desktop-launch.ts`
+20. `src/lib/runtime.ts`
+21. `src/features/life/book-reader.tsx`
+22. `LaunchPlugin.kt`
+23. `MainActivity.kt`
 
-> Rust 原生层：启动资源、URL 校验、应用枚举、IPC 命令
+---
 
+## 文件：`src-tauri/src/main.rs`
+
+```rust
+// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+fn main() {
+  zynthel_lib::run();
+}
 ```
-rust
+
+## 文件：`src-tauri/src/lib.rs`
+
+```rust
+mod launch;
+use tauri::Manager;
+
+#[cfg(target_os = "android")]
+fn launcher_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+  tauri::plugin::Builder::new("launcher")
+    .setup(|app, api| {
+      let handle = api
+        .register_android_plugin("com.zynthel.workspace", "LaunchPlugin")
+        .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
+      app.manage(launch::android::Launcher(handle));
+      Ok(())
+    })
+    .build()
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+  let mut builder = tauri::Builder::default();
+
+  #[cfg(target_os = "android")]
+  {
+    builder = builder.plugin(launcher_plugin());
+  }
+
+  builder
+    .setup(|app| {
+      if cfg!(debug_assertions) {
+        app.handle().plugin(
+          tauri_plugin_log::Builder::default()
+            .level(log::LevelFilter::Info)
+            .build(),
+        )?;
+      }
+      Ok(())
+    })
+    .invoke_handler(tauri::generate_handler![launch::launch_resource, launch::detect_applications, launch::list_android_apps])
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
+}
+```
+
+## 文件：`src-tauri/src/launch.rs`
+
+```rust
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "android")]
 use tauri::Manager;
@@ -375,77 +415,9 @@ mod tests {
 }
 ```
 
+## 文件：`src-tauri/Cargo.toml`
 
-## src-tauri/src/lib.rs
-
-> Rust 插件注册（register_android_plugin）
-
-```
-rust
-mod launch;
-use tauri::Manager;
-
-#[cfg(target_os = "android")]
-fn launcher_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-  tauri::plugin::Builder::new("launcher")
-    .setup(|app, api| {
-      let handle = api
-        .register_android_plugin("com.zynthel.workspace", "LaunchPlugin")
-        .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
-      app.manage(launch::android::Launcher(handle));
-      Ok(())
-    })
-    .build()
-}
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-  let mut builder = tauri::Builder::default();
-
-  #[cfg(target_os = "android")]
-  {
-    builder = builder.plugin(launcher_plugin());
-  }
-
-  builder
-    .setup(|app| {
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
-      }
-      Ok(())
-    })
-    .invoke_handler(tauri::generate_handler![launch::launch_resource, launch::detect_applications, launch::list_android_apps])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
-}
-```
-
-
-## src-tauri/src/main.rs
-
-> Rust 入口
-
-```
-rust
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-fn main() {
-  zynthel_lib::run();
-}
-```
-
-
-## src-tauri/Cargo.toml
-
-> Rust 依赖清单
-
-```
-toml
+```toml
 [package]
 name = "zynthel"
 version = "0.1.0"
@@ -474,13 +446,17 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 ```
 
+## 文件：`src-tauri/build.rs`
 
-## src-tauri/tauri.conf.json
-
-> Tauri 配置（productName/identifier/CSP）
-
+```rust
+fn main() {
+  tauri_build::build()
+}
 ```
-json
+
+## 文件：`src-tauri/tauri.conf.json`
+
+```json
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Zynthel",
@@ -530,13 +506,9 @@ json
 }
 ```
 
+## 文件：`src-tauri/capabilities/default.json`
 
-## src-tauri/capabilities/default.json
-
-> Tauri 权限能力
-
-```
-json
+```json
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
@@ -550,239 +522,9 @@ json
 }
 ```
 
+## 文件：`src-tauri/gen/android/app/src/main/AndroidManifest.xml`
 
-## src-tauri/gen/android/app/src/main/java/com/zynthel/workspace/LaunchPlugin.kt
-
-> Kotlin Android 插件：启动应用/打开网址/枚举应用
-
-```
-kotlin
-package com.zynthel.workspace
-
-import android.app.Activity
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.net.Uri
-import android.util.Base64
-import androidx.appcompat.app.AppCompatActivity
-import app.tauri.annotation.Command
-import app.tauri.annotation.InvokeArg
-import app.tauri.annotation.TauriPlugin
-import app.tauri.plugin.Invoke
-import app.tauri.plugin.JSObject
-import app.tauri.plugin.Plugin
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.ByteArrayOutputStream
-import java.util.Locale
-
-@InvokeArg
-class LaunchPackageArgs {
-    lateinit var packageName: String
-    var fallbackUrl: String? = null
-}
-
-@InvokeArg
-class OpenUrlArgs {
-    lateinit var url: String
-}
-
-@TauriPlugin
-class LaunchPlugin(private val activity: Activity) : Plugin(activity) {
-    // 开源版仅允许 http/https scheme，纵深防御（Rust 已做第一层校验）。
-    private val allowedSchemes = setOf("https", "http")
-
-    // IO 协程作用域：主线程外的重任务（应用枚举、图标 Bitmap、Base64）都跑在这里。
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    private fun isAllowedScheme(url: String): Boolean {
-        return runCatching {
-            Uri.parse(url).scheme?.lowercase(Locale.ROOT)
-        }.getOrNull() in allowedSchemes
-    }
-
-    private fun start(intent: Intent?) {
-        if (intent == null) return
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        activity.startActivity(intent)
-    }
-
-    /** 在 Activity 仍存活时 resolve，避免协程完成后 Activity 已销毁的竞态。 */
-    private fun resolveSafely(invoke: Invoke, result: JSObject) {
-        activity.runOnUiThread {
-            if (!activity.isFinishing && !activity.isDestroyed) invoke.resolve(result)
-        }
-    }
-
-    private fun rejectSafely(invoke: Invoke, message: String) {
-        activity.runOnUiThread {
-            if (!activity.isFinishing && !activity.isDestroyed) invoke.reject(message)
-        }
-    }
-
-    @Command
-    fun launchPackage(invoke: Invoke) {
-        val args = invoke.parseArgs(LaunchPackageArgs::class.java)
-        val packageManager = activity.packageManager
-        var intent = packageManager.getLaunchIntentForPackage(args.packageName)
-
-        if (intent == null && !args.fallbackUrl.isNullOrEmpty()) {
-            val fallbackUrl = args.fallbackUrl
-            if (!isAllowedScheme(fallbackUrl!!)) {
-                rejectSafely(invoke, "unsupported url scheme")
-                return
-            }
-            intent = Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl))
-        }
-
-        val result = JSObject()
-        if (intent == null) {
-            result.put("ok", false)
-            resolveSafely(invoke, result)
-            return
-        }
-
-        try {
-            start(intent)
-            result.put("ok", true)
-        } catch (error: ActivityNotFoundException) {
-            result.put("ok", false)
-        } catch (error: Exception) {
-            rejectSafely(invoke, error.message ?: "launch failed")
-            return
-        }
-        resolveSafely(invoke, result)
-    }
-
-    @Command
-    fun openUrl(invoke: Invoke) {
-        val args = invoke.parseArgs(OpenUrlArgs::class.java)
-        if (!isAllowedScheme(args.url)) {
-            rejectSafely(invoke, "unsupported url scheme")
-            return
-        }
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(args.url))
-        val result = JSObject()
-        try {
-            start(intent)
-            result.put("ok", true)
-        } catch (error: ActivityNotFoundException) {
-            result.put("ok", false)
-        } catch (error: Exception) {
-            rejectSafely(invoke, error.message ?: "open url failed")
-            return
-        }
-        resolveSafely(invoke, result)
-    }
-
-    private fun iconToBase64(packageName: String, packageManager: PackageManager): String? {
-        val bitmap = try {
-            val drawable = packageManager.getApplicationIcon(packageName)
-            val size = 48
-            val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bmp)
-            drawable.setBounds(0, 0, size, size)
-            drawable.draw(canvas)
-            bmp
-        } catch (error: Exception) {
-            return null
-        }
-        return try {
-            val stream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
-            Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
-        } catch (error: Exception) {
-            null
-        } finally {
-            bitmap.recycle()
-        }
-    }
-
-    @Command
-    fun listInstalledApps(invoke: Invoke) {
-        scope.launch {
-            try {
-                val packageManager = activity.packageManager
-                val launcherIntent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
-                val resolved = packageManager.queryIntentActivities(launcherIntent, 0)
-                val seen = HashSet<String>()
-                val items = mutableListOf<Pair<String, JSONObject>>()
-
-                for (info in resolved) {
-                    val packageName = info.activityInfo?.packageName ?: continue
-                    if (packageName == activity.packageName || !seen.add(packageName)) continue
-                    val item = JSONObject()
-                    item.put("name", info.loadLabel(packageManager).toString())
-                    item.put("packageName", packageName)
-                    val icon = iconToBase64(packageName, packageManager)
-                    if (icon != null) item.put("icon", icon)
-                    items.add(Pair(info.loadLabel(packageManager).toString(), item))
-                }
-
-                items.sortBy { it.first.lowercase(Locale.getDefault()) }
-                val array = JSONArray()
-                for (entry in items) array.put(entry.second)
-
-                val result = JSObject()
-                result.put("apps", array)
-                resolveSafely(invoke, result)
-            } catch (error: Exception) {
-                rejectSafely(invoke, error.message ?: "list apps failed")
-            }
-        }
-    }
-
-    @Command
-    fun isInstalled(invoke: Invoke) {
-        val args = invoke.parseArgs(LaunchPackageArgs::class.java)
-        val intent = activity.packageManager.getLaunchIntentForPackage(args.packageName)
-        val result = JSObject()
-        result.put("installed", intent != null)
-        invoke.resolve(result)
-    }
-
-    override fun onDestroy(activity: AppCompatActivity) {
-        scope.cancel()
-        super.onDestroy(activity)
-    }
-}
-```
-
-
-## src-tauri/gen/android/app/src/main/java/com/zynthel/workspace/MainActivity.kt
-
-> Kotlin 主 Activity
-
-```
-kotlin
-package com.zynthel.workspace
-
-import android.os.Bundle
-import androidx.activity.enableEdgeToEdge
-
-class MainActivity : TauriActivity() {
-  override fun onCreate(savedInstanceState: Bundle?) {
-    enableEdgeToEdge()
-    super.onCreate(savedInstanceState)
-  }
-}
-```
-
-
-## src-tauri/gen/android/app/src/main/AndroidManifest.xml
-
-> Android 权限与组件清单
-
-```
-xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
@@ -837,13 +579,9 @@ xml
 </manifest>
 ```
 
+## 文件：`src/features/data/schema.ts`
 
-## src/features/data/schema.ts
-
-> 数据契约（workspace/settings/工具/启动方式）
-
-```
-typescript
+```ts
 import { z } from "zod";
 import {
   ledgerAccountSchema,
@@ -1074,13 +812,9 @@ export function createDefaultWorkspace(
 }
 ```
 
+## 文件：`src/features/data/life-schema.ts`
 
-## src/features/data/life-schema.ts
-
-> 生活工具 schema（课程含 weeks 1-20、书籍含 source/fileName、vault 加密字段）
-
-```
-typescript
+```ts
 import { z } from "zod";
 
 const timestamp = z.string();
@@ -1247,13 +981,9 @@ export type VaultMeta = z.infer<typeof vaultMetaSchema>;
 export type VaultEntry = z.infer<typeof vaultEntrySchema>;
 ```
 
+## 文件：`src/features/data/repository.ts`
 
-## src/features/data/repository.ts
-
-> 数据仓库（localStorage + storage key 迁移）
-
-```
-typescript
+```ts
 import { createDefaultWorkspace, type WorkspaceData, workspaceSchema } from "./schema";
 
 export const STORAGE_KEY = "zynthel.workspace.open";
@@ -1325,13 +1055,9 @@ export function createWorkspaceRepository(storage?: Storage): WorkspaceRepositor
 export const workspaceRepository = createWorkspaceRepository();
 ```
 
+## 文件：`src/features/data/transfer.ts`
 
-## src/features/data/transfer.ts
-
-> 数据导入导出 + 完整备份（ZIP：workspace JSON + 书籍文件，jszip）
-
-```
-typescript
+```ts
 import { type WorkspaceData, workspaceSchema } from "./schema";
 
 export type ImportResult =
@@ -1361,6 +1087,24 @@ export type FullBackupFile = { bookId: string; fileName: string; blob: Blob };
 
 const BACKUP_MARKER = "zynthel-full-backup";
 
+// 恢复备份的资源限制（Android 平板合理默认，防止超大备份一次性载入内存导致 OOM）
+const MAX_BACKUP_ZIP_BYTES = 200 * 1024 * 1024; // ZIP 文件总大小上限 200MB
+const MAX_BACKUP_FILES = 500; // 书籍文件数量上限
+const MAX_BACKUP_FILE_BYTES = 50 * 1024 * 1024; // 单个书籍文件解压上限 50MB
+const MAX_BACKUP_TOTAL_BYTES = 300 * 1024 * 1024; // 全部书籍文件解压总量上限 300MB
+
+export type FullBackupParseError =
+  | "invalid-zip"
+  | "unsupported-data"
+  | "zip-too-large"
+  | "too-many-files"
+  | "file-too-large"
+  | "total-too-large";
+
+export type FullBackupParseResult =
+  | { ok: true; data: WorkspaceData; files: FullBackupFile[] }
+  | { ok: false; error: FullBackupParseError };
+
 /** 打包完整备份：工作区数据 JSON + 本地书籍文件（IndexedDB blob） */
 export async function buildFullBackup(data: WorkspaceData, files: FullBackupFile[]): Promise<Blob> {
   const JSZip = (await import("jszip")).default;
@@ -1373,12 +1117,11 @@ export async function buildFullBackup(data: WorkspaceData, files: FullBackupFile
   return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
 }
 
-export type FullBackupParseResult =
-  | { ok: true; data: WorkspaceData; files: FullBackupFile[] }
-  | { ok: false; error: "invalid-zip" | "unsupported-data" };
-
-/** 解析完整备份：返回工作区数据与书籍文件列表（供写入 IndexedDB） */
+/** 解析完整备份：返回工作区数据与书籍文件列表（供写入 IndexedDB）。带资源限制 + bookId 校验。 */
 export async function parseFullBackup(file: Blob): Promise<FullBackupParseResult> {
+  // 1. ZIP 文件大小限制（避免超大备份整体载入内存）
+  if (file.size > MAX_BACKUP_ZIP_BYTES) return { ok: false, error: "zip-too-large" };
+
   let zip: InstanceType<typeof import("jszip")>;
   try {
     const JSZip = (await import("jszip")).default;
@@ -1398,17 +1141,39 @@ export async function parseFullBackup(file: Blob): Promise<FullBackupParseResult
   const parsed = workspaceSchema.safeParse(manifest.workspace);
   if (!parsed.success) return { ok: false, error: "unsupported-data" };
 
+  // 2. 合法的 bookId 集合（仅恢复 workspace.books 中存在的书籍对应的文件）
+  const validBookIds = new Set(parsed.data.books.map((b) => b.id));
+
+  // 3. 遍历 books/ 目录：只收集合法 bookId、无重复、文件名安全的条目
   const entries: { bookId: string; fileName: string; entry: import("jszip").JSZipObject }[] = [];
+  const seenBookIds = new Set<string>();
   zip.folder("books")?.forEach((relativePath: string, entry: import("jszip").JSZipObject) => {
     if (entry.dir) return;
     const sep = relativePath.indexOf("__");
     const bookId = sep > 0 ? relativePath.slice(0, sep) : relativePath;
     const fileName = sep > 0 ? relativePath.slice(sep + 2) : relativePath;
+    // 忽略孤儿文件：bookId 不在 workspace.books 中
+    if (!validBookIds.has(bookId)) return;
+    // 防止重复 bookId：同一本书只取第一个文件
+    if (seenBookIds.has(bookId)) return;
+    // 异常文件名（含路径分隔符等）直接忽略
+    if (!fileName || fileName.length > 200 || /[\\/]/.test(fileName)) return;
+    seenBookIds.add(bookId);
     entries.push({ bookId, fileName, entry });
   });
+
+  // 4. 文件数量限制
+  if (entries.length > MAX_BACKUP_FILES) return { ok: false, error: "too-many-files" };
+
+  // 5. 逐个解压，边解压边累计大小（不在内存中同时持有所有文件）
   const files: FullBackupFile[] = [];
+  let totalBytes = 0;
   for (const { bookId, fileName, entry } of entries) {
-    files.push({ bookId, fileName, blob: await entry.async("blob") });
+    const blob: Blob = await entry.async("blob");
+    if (blob.size > MAX_BACKUP_FILE_BYTES) return { ok: false, error: "file-too-large" };
+    totalBytes += blob.size;
+    if (totalBytes > MAX_BACKUP_TOTAL_BYTES) return { ok: false, error: "total-too-large" };
+    files.push({ bookId, fileName, blob });
   }
   return { ok: true, data: parsed.data, files };
 }
@@ -1426,13 +1191,9 @@ export function downloadBlob(blob: Blob, fileName: string): void {
 }
 ```
 
+## 文件：`src/features/data/crypto.ts`
 
-## src/features/data/crypto.ts
-
-> 密码本加密（AES-GCM + PBKDF2 + 密码生成）
-
-```
-typescript
+```ts
 // 密码本加密工具：使用原生 Web Crypto（AES-GCM 256 + PBKDF2-SHA256）。
 // 不引入 crypto-js 等额外依赖，密钥仅存内存，不落盘。
 
@@ -1572,13 +1333,9 @@ export function generatePassword(length = 16, opts?: {
 }
 ```
 
+## 文件：`src/features/data/ai-schema.ts`
 
-## src/features/data/ai-schema.ts
-
-> AI 模型配置 schema
-
-```
-typescript
+```ts
 import { z } from "zod";
 
 const timestamp = z.string();
@@ -1624,13 +1381,9 @@ export type AiMessage = z.infer<typeof aiMessageSchema>;
 export type AiConversation = z.infer<typeof aiConversationSchema>;
 ```
 
+## 文件：`src/features/ai/ai-client.ts`
 
-## src/features/ai/ai-client.ts
-
-> AI 客户端（fetch + 60s 超时）
-
-```
-typescript
+```ts
 // AI 客户端：前端直连用户填写的接口地址（OpenAI 兼容协议）。
 // 不内置任何 API 端点/密钥，全部由用户自行配置。
 
@@ -1700,13 +1453,9 @@ export async function chatCompletion(
 }
 ```
 
+## 文件：`src/lib/book-storage.ts`
 
-## src/lib/book-storage.ts
-
-> 【新增】书籍文件 IndexedDB 存储（blob 读写/遍历/删除）
-
-```
-typescript
+```ts
 // 阅读文件本地存储：IndexedDB 存 blob（localStorage 5MB 上限放不下 PDF/EPUB）。
 // 以书籍 id 为 key，选文件时写入，删除书时清理，阅读器打开时读取。
 
@@ -1716,16 +1465,30 @@ const VERSION = 1;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+/** 归一化 IndexedDB 错误，识别配额/不可用/事务失败，抛出带语义的 Error */
+function normalizeError(err: unknown, fallback: string): Error {
+  const name = err instanceof DOMException ? err.name : undefined;
+  if (name === "QuotaExceededError") return new Error("存储空间不足（QuotaExceededError）");
+  if (name === "InvalidStateError" || name === "TransactionInactiveError") return new Error("存储事务失败");
+  if (err instanceof Error) return err;
+  return new Error(fallback);
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("打开本地书库失败"));
+    try {
+      const request = indexedDB.open(DB_NAME, VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(normalizeError(request.error, "打开本地书库失败"));
+    } catch (err) {
+      // IndexedDB 不可用（隐私模式 / WebView 禁用存储）
+      reject(normalizeError(err, "本地存储不可用"));
+    }
   });
   return dbPromise;
 }
@@ -1733,9 +1496,10 @@ function openDb(): Promise<IDBDatabase> {
 function runTx<T>(mode: IDBTransactionMode, operate: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return openDb().then((db) => new Promise<T>((resolve, reject) => {
     const tx = db.transaction(STORE, mode);
+    tx.onabort = () => reject(normalizeError(tx.error, "本地书库事务失败"));
     const request = operate(tx.objectStore(STORE));
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("本地书库读写失败"));
+    request.onerror = () => reject(normalizeError(request.error, "本地书库读写失败"));
   }));
 }
 
@@ -1777,15 +1541,28 @@ export function supportedFileType(fileName: string): "pdf" | "epub" | "txt" | nu
   if (ext === "txt" || ext === "md") return "txt";
   return null;
 }
+
+/** 写入多个书籍文件；若任一失败，删除本轮已写入的文件并抛错（保证不写一半）。 */
+export async function putBookFiles(files: { bookId: string; blob: Blob }[]): Promise<void> {
+  const written: string[] = [];
+  try {
+    for (const f of files) {
+      await putBookFile(f.bookId, f.blob);
+      written.push(f.bookId);
+    }
+  } catch (err) {
+    // 回滚：删除本轮已写入的文件
+    for (const id of written) {
+      try { await deleteBookFile(id); } catch { /* 尽力回滚，忽略回滚失败 */ }
+    }
+    throw normalizeError(err, "写入本地书库失败");
+  }
+}
 ```
 
+## 文件：`src/lib/installed-apps.ts`
 
-## src/lib/installed-apps.ts
-
-> 应用枚举前端封装（区分空/失败）
-
-```
-typescript
+```ts
 import { isTauriRuntime } from "./runtime";
 
 export type InstalledApp = {
@@ -1812,13 +1589,20 @@ export async function listInstalledApps(): Promise<InstalledAppsResult> {
 }
 ```
 
+## 文件：`src/lib/open-launch.ts`
 
-## src/lib/desktop-launch.ts
+```ts
+import type { LaunchMethod } from "@/features/data/schema";
+import { launchResource } from "./desktop-launch";
 
-> 启动资源前端封装
-
+export async function openLaunch(launch: LaunchMethod) {
+  return launchResource(launch);
+}
 ```
-typescript
+
+## 文件：`src/lib/desktop-launch.ts`
+
+```ts
 import type { LaunchMethod } from "@/features/data/schema";
 import { isTauriRuntime } from "./runtime";
 
@@ -1865,69 +1649,544 @@ export async function launchResource(
 }
 ```
 
+## 文件：`src/lib/runtime.ts`
 
-## src/lib/open-launch.ts
-
-> 启动入口
-
-```
-typescript
-import type { LaunchMethod } from "@/features/data/schema";
-import { launchResource } from "./desktop-launch";
-
-export async function openLaunch(launch: LaunchMethod) {
-  return launchResource(launch);
-}
-```
-
-
-## src/lib/runtime.ts
-
-> 运行时检测
-
-```
-typescript
+```ts
 export function isTauriRuntime(): boolean {
   if (typeof window === "undefined") return false;
   return "__TAURI_INTERNALS__" in window;
 }
 ```
 
+## 文件：`src/features/life/book-reader.tsx`
+
+```tsx
+"use client";
+
+// 应用内阅读器：PDF（pdf.js canvas 渲染）/ EPUB（epub.js 分页）/ TXT·MD（自研分页）。
+// 统一左右翻页交互（按钮 + 键盘 + 触摸滑动），进度按书 id 记忆（localStorage）。
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { getBookFile, supportedFileType } from "@/lib/book-storage";
+
+export type ReaderTarget = { bookId: string; title: string; fileName: string };
+
+const PROGRESS_KEY = (bookId: string) => `reader.progress.${bookId}`;
+
+function loadProgress(bookId: string): number {
+  const raw = localStorage.getItem(PROGRESS_KEY(bookId));
+  const n = raw ? parseInt(raw, 10) : 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function saveProgress(bookId: string, value: number) {
+  localStorage.setItem(PROGRESS_KEY(bookId), String(value));
+}
+
+export function BookReader({ target, onClose }: { target: ReaderTarget; onClose: () => void }) {
+  const mode = useMemo(() => supportedFileType(target.fileName), [target.fileName]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [blobUrl, setBlobUrl] = useState("");
+  // 追踪当前活跃的 blob URL，保证切换书籍/关闭/unmount 时都能 revoke，避免内存泄漏
+  const activeUrlRef = useRef<string>("");
+  // Portal 到 body：避免玻璃面板的 backdrop-filter 把 fixed 遮罩退化成局部定位
+  // 惰性初始化判断 document 可用性（客户端），避免 effect 内 setState
+  const [mounted] = useState(() => typeof document !== "undefined");
+
+  const [pdfPage, setPdfPage] = useState(() => loadProgress(target.bookId));
+  const [pdfTotal, setPdfTotal] = useState(0);
+  const [epubPercent, setEpubPercent] = useState(() => (loadProgress(target.bookId) || 0));
+  const [txtIndex, setTxtIndex] = useState(() => loadProgress(target.bookId));
+  const [txtTotal, setTxtTotal] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const blob = await getBookFile(target.bookId);
+        if (cancelled) return;
+        if (!blob) { setError("找不到文件内容，请重新选择文件添加。"); setLoading(false); return; }
+        const url = URL.createObjectURL(blob);
+        // 若已有旧 URL（切换书籍），先 revoke
+        if (activeUrlRef.current) URL.revokeObjectURL(activeUrlRef.current);
+        activeUrlRef.current = url;
+        setBlobUrl(url);
+        setLoading(false);
+      } catch {
+        if (!cancelled) { setError("读取本地文件失败。"); setLoading(false); }
+      }
+    })();
+    // 卸载或 bookId 变化时 revoke 当前 URL
+    return () => {
+      cancelled = true;
+      if (activeUrlRef.current) {
+        URL.revokeObjectURL(activeUrlRef.current);
+        activeUrlRef.current = "";
+      }
+    };
+  }, [target.bookId]);
+
+  const goNext = useCallback(() => {
+    if (mode === "pdf" && pdfPage < pdfTotal) { const n = pdfPage + 1; setPdfPage(n); saveProgress(target.bookId, n); }
+    if (mode === "txt" && txtIndex < txtTotal - 1) { const n = txtIndex + 1; setTxtIndex(n); saveProgress(target.bookId, n); }
+  }, [mode, pdfPage, pdfTotal, txtIndex, txtTotal, target.bookId]);
+
+  const goPrev = useCallback(() => {
+    if (mode === "pdf" && pdfPage > 1) { const n = pdfPage - 1; setPdfPage(n); saveProgress(target.bookId, n); }
+    if (mode === "txt" && txtIndex > 0) { const n = txtIndex - 1; setTxtIndex(n); saveProgress(target.bookId, n); }
+  }, [mode, pdfPage, txtIndex, target.bookId]);
+
+  // 键盘翻页 + 触摸滑动翻页
+  const touchStartX = useRef(0);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") goNext();
+      if (e.key === "ArrowLeft") goPrev();
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goNext, goPrev, onClose]);
+
+  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (dx < -50) goNext();
+    if (dx > 50) goPrev();
+  };
+
+  const progressLabel = mode === "pdf" && pdfTotal ? `${pdfPage} / ${pdfTotal}`
+    : mode === "txt" && txtTotal ? `${Math.min(txtIndex + 1, txtTotal)} / ${txtTotal}`
+    : mode === "epub" ? `${Math.min(epubPercent, 100)}%`
+    : "";
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="book-reader-backdrop" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <header className="book-reader-head">
+        <strong title={target.title}>{target.title}</strong>
+        <span className="book-reader-progress">{progressLabel}</span>
+        <button aria-label="关闭阅读器" onClick={onClose}><X /></button>
+      </header>
+
+      {loading && <div className="book-reader-status"><Loader2 className="spin" /> 正在打开文件…</div>}
+      {!loading && error && <div className="book-reader-status">{error}</div>}
+
+      {!loading && !error && mode === "pdf" && (
+        <PdfEngine url={blobUrl} page={pdfPage} onPageCount={setPdfTotal} onError={setError} />
+      )}
+      {!loading && !error && mode === "epub" && (
+        <EpubEngine url={blobUrl} onPercent={(p) => { setEpubPercent(p); saveProgress(target.bookId, p); }} onError={setError} />
+      )}
+      {!loading && !error && mode === "txt" && (
+        <TxtEngine url={blobUrl} index={txtIndex} onReady={setTxtTotal} />
+      )}
+
+      {!loading && !error && (mode === "pdf" || mode === "txt") && (
+        <div className="book-reader-nav">
+          <button aria-label="上一页" onClick={goPrev} disabled={mode === "pdf" ? pdfPage <= 1 : txtIndex <= 0}><ChevronLeft /> 上一页</button>
+          <span>{progressLabel}</span>
+          <button aria-label="下一页" onClick={goNext} disabled={mode === "pdf" ? pdfPage >= pdfTotal : txtIndex >= txtTotal - 1}>下一页 <ChevronRight /></button>
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
+/* ===== PDF 引擎：pdf.js 渲染当前页到 canvas ===== */
+function PdfEngine({ url, page, onPageCount, onError }: {
+  url: string; page: number; onPageCount: (n: number) => void; onError: (msg: string) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pdfRef = useRef<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => Promise<void> }> } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        const doc = await pdfjs.getDocument({ url }).promise;
+        if (cancelled) return;
+        pdfRef.current = doc as unknown as typeof pdfRef.current;
+        onPageCount(doc.numPages);
+      } catch {
+        if (!cancelled) onError("PDF 解析失败，文件可能已损坏。");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [url, onPageCount, onError]);
+
+  useEffect(() => {
+    const doc = pdfRef.current;
+    const canvas = canvasRef.current;
+    if (!doc || !canvas || page < 1 || page > doc.numPages) return;
+    let cancelled = false;
+    (async () => {
+      const pdfPage = await doc.getPage(page);
+      const container = canvas.parentElement;
+      const fit = Math.min(1.6, Math.max(0.5, (container?.clientWidth ?? 600) / pdfPage.getViewport({ scale: 1 }).width));
+      const viewport = pdfPage.getViewport({ scale: fit * window.devicePixelRatio });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.width = `${Math.round(viewport.width / window.devicePixelRatio)}px`;
+      const ctx = canvas.getContext("2d");
+      if (!ctx || cancelled) return;
+      await pdfPage.render({ canvasContext: ctx, viewport });
+    })();
+    return () => { cancelled = true; };
+  }, [page, url]);
+
+  return <div className="book-reader-body pdf-body"><canvas ref={canvasRef} /></div>;
+}
+
+/* ===== EPUB 引擎：epub.js paginated 左右翻页 ===== */
+function EpubEngine({ url, onPercent, onError }: {
+  url: string; onPercent: (p: number) => void; onError: (msg: string) => void;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<{ prev: () => void; next: () => void } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+    (async () => {
+      try {
+        const ePub = (await import("epubjs")).default;
+        const book = ePub(url);
+        if (cancelled || !hostRef.current) return;
+        const rendition = book.renderTo(hostRef.current, { width: "100%", height: "100%", spread: "none", flow: "paginated" });
+        await rendition.display();
+        (rendition as unknown as { on: (ev: string, cb: (location: { start: { percentage: number } }) => void) => void }).on("relocated", (location) => {
+          const pct = Math.round((location?.start?.percentage ?? 0) * 100);
+          onPercent(pct);
+        });
+        navRef.current = { prev: () => rendition.prev(), next: () => rendition.next() };
+        // 键盘翻页（焦点在宿主页面时）；iframe 内的按键由 epub.js 自行处理
+        const onKey = (e: KeyboardEvent) => {
+          if (e.key === "ArrowRight") rendition.next();
+          if (e.key === "ArrowLeft") rendition.prev();
+        };
+        window.addEventListener("keydown", onKey);
+        cleanup = () => {
+          window.removeEventListener("keydown", onKey);
+          rendition.destroy();
+          book.destroy();
+        };
+      } catch {
+        if (!cancelled) onError("EPUB 解析失败，文件可能已损坏。");
+      }
+    })();
+    return () => { cancelled = true; cleanup?.(); navRef.current = null; };
+  }, [url, onPercent, onError]);
+
+  const touchX = useRef(0);
+  return (
+    <div
+      className="book-reader-body epub-body"
+      ref={hostRef}
+      onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => {
+        const dx = e.changedTouches[0].clientX - touchX.current;
+        if (dx < -50) navRef.current?.next();
+        if (dx > 50) navRef.current?.prev();
+      }}
+    />
+  );
+}
+
+/* ===== TXT/MD 引擎：按字符量分页，左右翻页 ===== */
+const CHARS_PER_PAGE = 1600;
+
+function TxtEngine({ url, index, onReady }: {
+  url: string; index: number;
+  onReady: (n: number) => void;
+}) {
+  const [pages, setPages] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const text = await (await fetch(url)).text();
+      if (cancelled) return;
+      const chunks: string[] = [];
+      // 按段落边界优先切页，段落超长再硬切
+      const paragraphs = text.replace(/\r\n/g, "\n").split(/\n{2,}/);
+      let current = "";
+      for (const p of paragraphs) {
+        if (p.length > CHARS_PER_PAGE) {
+          if (current) { chunks.push(current); current = ""; }
+          for (let i = 0; i < p.length; i += CHARS_PER_PAGE) chunks.push(p.slice(i, i + CHARS_PER_PAGE));
+          continue;
+        }
+        if (current.length + p.length > CHARS_PER_PAGE) { chunks.push(current); current = p; }
+        else current = current ? `${current}\n\n${p}` : p;
+      }
+      if (current) chunks.push(current);
+      setPages(chunks);
+      onReady(chunks.length);
+    })();
+    return () => { cancelled = true; };
+  }, [url, onReady]);
+
+  return (
+    <div className="book-reader-body txt-body">
+      <pre>{pages[Math.min(index, Math.max(pages.length - 1, 0))] ?? ""}</pre>
+    </div>
+  );
+}
+```
+
+## 文件：`LaunchPlugin.kt`
+
+```kotlin
+package com.zynthel.workspace
+
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.net.Uri
+import android.util.Base64
+import androidx.appcompat.app.AppCompatActivity
+import app.tauri.annotation.Command
+import app.tauri.annotation.InvokeArg
+import app.tauri.annotation.TauriPlugin
+import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSObject
+import app.tauri.plugin.Plugin
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.util.Locale
+
+@InvokeArg
+class LaunchPackageArgs {
+    lateinit var packageName: String
+    var fallbackUrl: String? = null
+}
+
+@InvokeArg
+class OpenUrlArgs {
+    lateinit var url: String
+}
+
+@TauriPlugin
+class LaunchPlugin(private val activity: Activity) : Plugin(activity) {
+    // 开源版仅允许 http/https scheme，纵深防御（Rust 已做第一层校验）。
+    private val allowedSchemes = setOf("https", "http")
+
+    // IO 协程作用域：主线程外的重任务（应用枚举、图标 Bitmap、Base64）都跑在这里。
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private fun isAllowedScheme(url: String): Boolean {
+        return runCatching {
+            Uri.parse(url).scheme?.lowercase(Locale.ROOT)
+        }.getOrNull() in allowedSchemes
+    }
+
+    private fun start(intent: Intent?) {
+        if (intent == null) return
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        activity.startActivity(intent)
+    }
+
+    /** 在 Activity 仍存活时 resolve，避免协程完成后 Activity 已销毁的竞态。 */
+    private fun resolveSafely(invoke: Invoke, result: JSObject) {
+        activity.runOnUiThread {
+            if (!activity.isFinishing && !activity.isDestroyed) invoke.resolve(result)
+        }
+    }
+
+    private fun rejectSafely(invoke: Invoke, message: String) {
+        activity.runOnUiThread {
+            if (!activity.isFinishing && !activity.isDestroyed) invoke.reject(message)
+        }
+    }
+
+    @Command
+    fun launchPackage(invoke: Invoke) {
+        val args = invoke.parseArgs(LaunchPackageArgs::class.java)
+        val packageManager = activity.packageManager
+        var intent = packageManager.getLaunchIntentForPackage(args.packageName)
+
+        if (intent == null && !args.fallbackUrl.isNullOrEmpty()) {
+            val fallbackUrl = args.fallbackUrl
+            if (!isAllowedScheme(fallbackUrl!!)) {
+                rejectSafely(invoke, "unsupported url scheme")
+                return
+            }
+            intent = Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl))
+        }
+
+        val result = JSObject()
+        if (intent == null) {
+            result.put("ok", false)
+            resolveSafely(invoke, result)
+            return
+        }
+
+        try {
+            start(intent)
+            result.put("ok", true)
+        } catch (error: ActivityNotFoundException) {
+            result.put("ok", false)
+        } catch (error: Exception) {
+            rejectSafely(invoke, error.message ?: "launch failed")
+            return
+        }
+        resolveSafely(invoke, result)
+    }
+
+    @Command
+    fun openUrl(invoke: Invoke) {
+        val args = invoke.parseArgs(OpenUrlArgs::class.java)
+        if (!isAllowedScheme(args.url)) {
+            rejectSafely(invoke, "unsupported url scheme")
+            return
+        }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(args.url))
+        val result = JSObject()
+        try {
+            start(intent)
+            result.put("ok", true)
+        } catch (error: ActivityNotFoundException) {
+            result.put("ok", false)
+        } catch (error: Exception) {
+            rejectSafely(invoke, error.message ?: "open url failed")
+            return
+        }
+        resolveSafely(invoke, result)
+    }
+
+    private fun iconToBase64(packageName: String, packageManager: PackageManager): String? {
+        val bitmap = try {
+            val drawable = packageManager.getApplicationIcon(packageName)
+            val size = 48
+            val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+            bmp
+        } catch (error: Exception) {
+            return null
+        }
+        return try {
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+            Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+        } catch (error: Exception) {
+            null
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    @Command
+    fun listInstalledApps(invoke: Invoke) {
+        scope.launch {
+            try {
+                val packageManager = activity.packageManager
+                val launcherIntent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
+                val resolved = packageManager.queryIntentActivities(launcherIntent, 0)
+                val seen = HashSet<String>()
+                val items = mutableListOf<Pair<String, JSONObject>>()
+
+                for (info in resolved) {
+                    val packageName = info.activityInfo?.packageName ?: continue
+                    if (packageName == activity.packageName || !seen.add(packageName)) continue
+                    val item = JSONObject()
+                    item.put("name", info.loadLabel(packageManager).toString())
+                    item.put("packageName", packageName)
+                    val icon = iconToBase64(packageName, packageManager)
+                    if (icon != null) item.put("icon", icon)
+                    items.add(Pair(info.loadLabel(packageManager).toString(), item))
+                }
+
+                items.sortBy { it.first.lowercase(Locale.getDefault()) }
+                val array = JSONArray()
+                for (entry in items) array.put(entry.second)
+
+                val result = JSObject()
+                result.put("apps", array)
+                resolveSafely(invoke, result)
+            } catch (error: Exception) {
+                rejectSafely(invoke, error.message ?: "list apps failed")
+            }
+        }
+    }
+
+    @Command
+    fun isInstalled(invoke: Invoke) {
+        val args = invoke.parseArgs(LaunchPackageArgs::class.java)
+        val intent = activity.packageManager.getLaunchIntentForPackage(args.packageName)
+        val result = JSObject()
+        result.put("installed", intent != null)
+        invoke.resolve(result)
+    }
+
+    override fun onDestroy(activity: AppCompatActivity) {
+        scope.cancel()
+        super.onDestroy(activity)
+    }
+}
+```
+
+## 文件：`MainActivity.kt`
+
+```kotlin
+package com.zynthel.workspace
+
+import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
+
+class MainActivity : TauriActivity() {
+  override fun onCreate(savedInstanceState: Bundle?) {
+    enableEdgeToEdge()
+    super.onCreate(savedInstanceState)
+  }
+}
+```
+
+
 
 ---
 
 ## 附：审查重点与已知情况（供第三方 AI 参考）
 
-### 本轮新增/变更（重点审查对象）
+### 🔴 P0 —— 原生命令层（安全边界）
+1. **`launch.rs`**：URL 校验（http/https 白名单）、拒绝控制字符、路径校验、可执行命令白名单。
+2. **`LaunchPlugin.kt`**：启动第三方应用 / 打开网址 / 枚举应用，含 scheme 白名单、IO 协程防 ANR、
+   `resolveSafely`/`rejectSafely`、`bitmap.recycle()` finally。
+3. **`lib.rs`**：Android 插件注册 + 命令注册。
 
-1. **IndexedDB 书籍文件存储**（`book-storage.ts`）：选文件即存 blob（PDF/EPUB 可能几十 MB），按 bookId 键控；删除书时清理。请审查：容量耗尽降级、隐私模式失败处理、遍历游标正确性。
-2. **完整备份/恢复**（`transfer.ts` buildFullBackup/parseFullBackup）：ZIP 结构 = `backup.json`（含 marker 校验）+ `books/<bookId>__<fileName>`。请审查：恶意 ZIP（路径穿越已被 `__` 前缀格式约束，但仍可复核）、大文件内存峰值、marker 校验绕过。
-3. **课程表周次**（`life-schema.ts` weeks 1-20 + schedule-page）：空数组语义 = 每周（兼容旧数据）；学期 startDate 推算当前周。请审查：跨年学期、时区边界。
-4. **应用内阅读器**（`book-reader.tsx`，前端但涉文件内容处理）：pdf.js blob URL 渲染、epub.js。请审查 blob URL 生命周期（revoke 时机）。
+### 🟡 P1 —— 数据与加密层
+4. **`crypto.ts`**：密码本 AES-GCM + PBKDF2，每字段独立 IV。
+5. **`repository.ts`**：localStorage 读写 + 订阅（storage key 迁移）。
+6. **`ai-client.ts`**：AI 客户端 fetch + 60s 超时。
+7. **`transfer.ts`**：数据导入导出 + 完整 ZIP 备份（jszip + 资源限制）。
+8. **`book-storage.ts`**：IndexedDB 书籍 blob 存储。
 
-### 已完成的加固（请复核是否到位、有无遗漏/回归）
+### 开源版合规说明（已去风险）
+- 无 Obsidian 集成、无境外 AI 服务、品牌已更名 Zynthel。
+- `validate_url` 仅 http/https（无 obsidian scheme）。
 
-1. AES-GCM 每字段独立 IV（crypto.ts + vaultEntrySchema）。
-2. URL 严格校验（launch.rs validate_url + LaunchPlugin.kt isAllowedScheme 双层）。
-3. IPC Result 错误传播 + 前端区分空列表/失败。
-4. Android 应用枚举移出主线程（IO 协程）。
-5. 生命周期安全（resolveSafely/rejectSafely + onDestroy cancel）。
-6. repository 先写盘再更新缓存，失败抛出。
-7. PBKDF2 iterations 范围 100k-1M。
-8. 密码生成 rejection sampling。
-9. AI baseUrl 校验 + 60s 超时。
-10. Storage Key 迁移（solaris.workspace.open → zynthel.workspace.open）。
+### 验证基线（截至上次提交 98dc34e）
+- 见 CODE_REVIEW.md。本次审查包仅更新源码内嵌内容，未重跑验证。
 
-### 已知/待审点（如实标注）
-
-1. `flag()` 用 `unwrap_or(false)`（launch.rs）：查询失败与未安装不可区分，前端无调用方，有意保留（P2）。
-2. API Key 明文存储（ai-schema.ts）：用户已确认接受；完整备份 ZIP 会包含明文 key。
-3. 完整备份 ZIP 无加密：书籍文件与工作区数据均为明文，用户需自行保管备份文件（如需加密备份可作后续需求）。
-4. `<a download>` 下载在 Tauri Android WebView 的行为依赖 wry DownloadListener，待真机验证。
-5. desktop-launch.ts 本地启动器 fallback（http://127.0.0.1:47135）鉴权待复核（桌面端专用，Android 不触达）。
-6. QUERY_ALL_PACKAGES 权限：仅用于 App Picker，sideload 分发已记录。
-
-### 明确不变更（任务书约定）
-
-- 不恢复 Obsidian / obsidian:// scheme、不恢复境外服务。
-- 背景图仅作用于首页；3 个旧主题已删除不恢复。
+### 与内测版差异（供对比审查）
+- 开源版包名 `com.zynthel.workspace`；内测版 `com.solaris.personal_terminal`。
+- 开源版阅读器动态 import 未修复 + CSP 无 worker-src（见顶部 ⚠️）；内测版已修复。
+- 开源版无 vault-page.tsx / themes/registry.ts / Obsidian 集成。
