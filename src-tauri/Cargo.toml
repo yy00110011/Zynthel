@@ -2,9 +2,9 @@
 name = "solaris"
 version = "0.1.0"
 description = "SOLARIS Personal Resonance Terminal"
-authors = ["SOLARIS"]
-license = ""
-repository = ""
+authors = ["SOLARIS Project Contributors"]
+license = "MIT"
+repository = "https://github.com/solaris-terminal/solaris"
 edition = "2021"
 rust-version = "1.77.2"
 

@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# SOLARIS 本地启动插件（JNI 反射实例化，不能被混淆移除）
+-keep class com.solaris.personal_terminal.LaunchPlugin { *; }
+-keep class com.solaris.personal_terminal.LaunchPackageArgs { *; }
+-keep class com.solaris.personal_terminal.OpenUrlArgs { *; }
+-keep class app.tauri.** { *; }
