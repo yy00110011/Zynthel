@@ -9,6 +9,7 @@ import "./final-layout-fix.css";
 import "./final-polish.css";
 import "./final-settings.css";
 import "./life.css";
+import "./help.css";
 
 export const metadata: Metadata = {
   title: "Zynthel",

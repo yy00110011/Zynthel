@@ -40,9 +40,13 @@ function openDb(): Promise<IDBDatabase> {
 function runTx<T>(mode: IDBTransactionMode, operate: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return openDb().then((db) => new Promise<T>((resolve, reject) => {
     const tx = db.transaction(STORE, mode);
+    let result: T | undefined;
+    tx.oncomplete = () => resolve(result as T);
+    tx.onerror = () => reject(normalizeError(tx.error, "本地书库事务失败"));
     tx.onabort = () => reject(normalizeError(tx.error, "本地书库事务失败"));
     const request = operate(tx.objectStore(STORE));
-    request.onsuccess = () => resolve(request.result);
+    // 仅在 request 成功时暂存结果，最终以 transaction.oncomplete 为准（真正提交完成才成功）。
+    request.onsuccess = () => { result = request.result; };
     request.onerror = () => reject(normalizeError(request.error, "本地书库读写失败"));
   }));
 }
@@ -66,6 +70,8 @@ export async function getAllBookFiles(): Promise<{ bookId: string; blob: Blob }[
     const tx = db.transaction(STORE, "readonly");
     const store = tx.objectStore(STORE);
     const result: { bookId: string; blob: Blob }[] = [];
+    tx.onerror = () => reject(normalizeError(tx.error, "遍历本地书库失败"));
+    tx.onabort = () => reject(normalizeError(tx.error, "遍历本地书库失败"));
     const cursorRequest = store.openCursor();
     cursorRequest.onsuccess = () => {
       const cursor = cursorRequest.result;

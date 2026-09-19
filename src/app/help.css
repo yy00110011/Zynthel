@@ -1,0 +1,19 @@
+/* 使用说明（内置手册）：离线、随 APK 打包，目录 + 章节锚点跳转 */
+.help-page{max-width:1450px;margin:0 auto;display:grid;gap:14px;grid-template-columns:240px 1fr;align-items:start}
+.help-toc{position:sticky;top:12px;display:grid;gap:4px}
+.help-toc a{display:block;padding:9px 12px;border-radius:10px;color:#c9c4d1;font-size:12px;border:1px solid transparent;transition:.16s ease}
+.help-toc a:hover{background:rgba(255,255,255,.06);color:#fff}
+.help-toc .toc-group{font-size:10px;letter-spacing:.12em;color:var(--accent-soft);margin:14px 12px 4px;text-transform:uppercase}
+.help-body{display:grid;gap:14px}
+.help-card{background:rgba(31,24,37,.62);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
+.help-card h2{font:22px Georgia,"Songti SC",serif;margin:0 0 6px;color:#fff8fb}
+.help-card h3{font-size:15px;margin:18px 0 6px;color:var(--accent-soft)}
+.help-card p,.help-card li{color:var(--muted);font-size:13px;line-height:1.7}
+.help-card ul{margin:6px 0;padding-left:18px}
+.help-card li{margin:3px 0}
+.help-card code{font-size:12px;background:rgba(255,255,255,.08);padding:2px 6px;border-radius:6px;color:var(--accent-soft)}
+.help-card .help-note{font-size:12px;color:var(--accent-soft);background:rgba(255,126,172,.08);border-left:3px solid var(--accent);padding:10px 14px;border-radius:8px;margin:12px 0}
+.help-card .help-warn{font-size:12px;color:#ffd0de;background:rgba(255,126,172,.1);border-left:3px solid var(--accent);padding:10px 14px;border-radius:8px;margin:12px 0}
+.help-card .help-step{display:flex;gap:10px;align-items:flex-start;margin:8px 0}
+.help-card .help-step b{flex:none;width:22px;height:22px;border-radius:50%;background:color-mix(in srgb,var(--accent) 25%,transparent);color:var(--accent-soft);display:grid;place-items:center;font-size:12px}
+@media(max-width:900px){.help-page{grid-template-columns:1fr}.help-toc{position:static;grid-template-columns:repeat(2,1fr)}}

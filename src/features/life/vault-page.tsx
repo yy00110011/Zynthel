@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, KeyRound, Lock, Shield, Eye, EyeOff, Wand2, Copy } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
 import { useWorkspace } from "@/features/data/use-workspace";
 import { workspaceRepository } from "@/features/data/repository";
@@ -28,6 +28,27 @@ export function VaultPage() {
 
   const hasVault = vaultMeta !== null;
   const isUnlocked = unlockedKey !== null;
+
+  // 锁定：清除 CryptoKey 与明文状态。页面刷新后天然保持锁定（key 仅存于内存）。
+  const lockVault = useCallback(() => {
+    setUnlockedKey(null);
+    setRevealId(null);
+    setMasterPassword("");
+  }, []);
+
+  // App 进入后台（WebView 切走 / 失焦）自动锁定密码本。
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) lockVault();
+    };
+    const onBlur = () => lockVault();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [lockVault]);
 
   // 初始化主密码（首次使用）
   const initVault = async () => {
@@ -164,7 +185,10 @@ export function VaultPage() {
   // 已解锁
   return (
     <div className="page-stack">
-      <header className="page-heading"><p>本地加密</p><h1>密码本</h1><span>已解锁，敏感信息默认掩码显示。</span></header>
+      <header className="page-heading" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+        <div><p>本地加密</p><h1>密码本</h1><span>已解锁，敏感信息默认掩码显示。</span></div>
+        <button type="button" className="primary-action" onClick={lockVault} title="锁定密码本"><Lock /> 锁定</button>
+      </header>
 
       <GlassPanel>
         <SectionTitle>添加密码</SectionTitle>
@@ -215,6 +239,21 @@ function VaultRow({ entry, revealed, onToggleReveal, onCopy, onRemove, decryptPa
   decryptPassword: (entry: { passwordCipher: string; passwordIv: string }) => Promise<string>;
 }) {
   const [plain, setPlain] = useState<string | null>(null);
+  // 令牌用于忽略旧的异步解密结果：快速「显示→隐藏」时，旧 Promise 完成后不得再显示明文。
+  const revealToken = useRef(0);
+
+  const handleToggle = () => {
+    revealToken.current += 1;
+    setPlain(null);
+    if (!revealed) {
+      const token = revealToken.current;
+      void decryptPassword({ passwordCipher: entry.passwordCipher, passwordIv: entry.passwordIv }).then((p) => {
+        if (revealToken.current === token) setPlain(p);
+      });
+    }
+    onToggleReveal();
+  };
+
   return (
     <div className="vault-item">
       <span className="vault-icon"><Lock /></span>
@@ -224,10 +263,7 @@ function VaultRow({ entry, revealed, onToggleReveal, onCopy, onRemove, decryptPa
         <span className="vault-password">{revealed ? (plain ?? "••••••••") : "••••••••"}</span>
       </div>
       {entry.category && <span className="vault-category">{entry.category}</span>}
-      <button aria-label="显示/隐藏" onClick={() => {
-        if (!revealed) void decryptPassword({ passwordCipher: entry.passwordCipher, passwordIv: entry.passwordIv }).then(setPlain);
-        onToggleReveal();
-      }}>{revealed ? <EyeOff /> : <Eye />}</button>
+      <button aria-label="显示/隐藏" onClick={handleToggle}>{revealed ? <EyeOff /> : <Eye />}</button>
       <button aria-label="复制" onClick={onCopy}><Copy /></button>
       <button aria-label="删除" onClick={onRemove}><Trash2 /></button>
     </div>

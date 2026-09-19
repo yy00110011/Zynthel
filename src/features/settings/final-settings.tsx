@@ -1,6 +1,7 @@
 "use client";
 
-import { Database, Download, FolderOpen, HardDriveDownload, HardDriveUpload, Info, Keyboard, RotateCcw, ShieldCheck, Upload, Image as ImageIcon, Bot, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Database, Download, FolderOpen, HardDriveDownload, HardDriveUpload, Info, Keyboard, RotateCcw, ShieldCheck, Upload, Image as ImageIcon, Bot, Plus, Trash2, Eye, EyeOff, BookOpen } from "lucide-react";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
 import { useWorkspace } from "@/features/data/use-workspace";
@@ -214,6 +215,9 @@ export function FinalSettings() {
           <div>
             <h2>Zynthel <small>开源版 v0.2.0</small></h2>
             <p>本地优先个人工作台</p>
+            <div className="about-section">
+              <Link href="/help" className="primary-action" style={{ display: "inline-flex" }}><BookOpen /> 使用说明</Link>
+            </div>
             <div className="about-section">
               <h3>所需权限</h3>
               <ul>

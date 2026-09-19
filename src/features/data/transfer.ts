@@ -109,7 +109,13 @@ export async function parseFullBackup(file: Blob): Promise<FullBackupParseResult
   const files: FullBackupFile[] = [];
   let totalBytes = 0;
   for (const { bookId, fileName, entry } of entries) {
-    const blob: Blob = await entry.async("blob");
+    let blob: Blob;
+    try {
+      blob = await entry.async("blob");
+    } catch {
+      // ZIP 条目损坏、解压失败：不要冒到 UI，统一按损坏备份处理。
+      return { ok: false, error: "invalid-zip" };
+    }
     if (blob.size > MAX_BACKUP_FILE_BYTES) return { ok: false, error: "file-too-large" };
     totalBytes += blob.size;
     if (totalBytes > MAX_BACKUP_TOTAL_BYTES) return { ok: false, error: "total-too-large" };
