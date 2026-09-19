@@ -195,7 +195,7 @@ export function FinalSettings() {
                   <figcaption>微信</figcaption>
                 </figure>
                 <figure className="donate-item">
-                  <img src="/donate/alipay.svg" alt="支付宝收款码" />
+                  <img src="/donate/alipay.jpg" alt="支付宝收款码" />
                   <figcaption>支付宝</figcaption>
                 </figure>
               </div>
