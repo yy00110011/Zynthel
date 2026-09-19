@@ -53,5 +53,5 @@ const server = http.createServer((request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`SOLARIS 本地启动器：http://${host}:${port}`);
+  console.log(`Zynthel 本地启动器：http://${host}:${port}`);
 });

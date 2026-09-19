@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDefaultWorkspace, workspaceSchema } from "./schema";
-import { createWorkspaceRepository } from "./repository";
+import { createWorkspaceRepository, STORAGE_KEY, LEGACY_STORAGE_KEY } from "./repository";
 import { exportWorkspace, importWorkspace } from "./transfer";
 
 class MemoryStorage implements Storage {
@@ -57,14 +57,31 @@ describe("workspace repository", () => {
     expect(before.settings.theme).toBe("peach-bloom");
     expect(repository.get().settings.theme).toBe("ember");
     expect(notifications).toBe(1);
-    expect(JSON.parse(storage.getItem("solaris.workspace.open") ?? "{}").settings.theme).toBe("ember");
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) ?? "{}").settings.theme).toBe("ember");
+  });
+
+  it("migrates legacy storage key to the new key on first read", () => {
+    const legacy = createDefaultWorkspace();
+    legacy.settings.theme = "peach-bloom";
+    storage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(legacy));
+    const repository = createWorkspaceRepository(storage);
+    expect(repository.get().version).toBe(2);
+    expect(storage.getItem(STORAGE_KEY)).not.toBeNull();
+    expect(JSON.parse(storage.getItem(STORAGE_KEY)!).settings.theme).toBe("peach-bloom");
+  });
+
+  it("ignores corrupted legacy payload and falls back to defaults", () => {
+    storage.setItem(LEGACY_STORAGE_KEY, "{not valid json");
+    const repository = createWorkspaceRepository(storage);
+    expect(repository.get().version).toBe(2);
+    expect(storage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it("keeps corrupted payloads intact while returning safe defaults", () => {
-    storage.setItem("solaris.workspace.open", "{not valid json");
+    storage.setItem(STORAGE_KEY, "{not valid json");
     const repository = createWorkspaceRepository(storage);
     expect(repository.get().version).toBe(2);
-    expect(storage.getItem("solaris.workspace.open")).toBe("{not valid json");
+    expect(storage.getItem(STORAGE_KEY)).toBe("{not valid json");
   });
 });
 

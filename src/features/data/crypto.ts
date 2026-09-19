@@ -85,7 +85,7 @@ export async function makeVerifier(
   key: CryptoKey,
   ivBase64: string,
 ): Promise<string> {
-  return encryptText(key, ivBase64, "solaris-vault-verifier");
+  return encryptText(key, ivBase64, "zynthel-vault-verifier");
 }
 
 /** 校验主密码是否正确：尝试解密 verifier 并与哨兵比对。 */
@@ -99,7 +99,7 @@ export async function verifyMasterPassword(
   try {
     const key = await deriveKey(masterPassword, saltBase64, iterations);
     const plain = await decryptText(key, ivBase64, verifier);
-    return plain === "solaris-vault-verifier";
+    return plain === "zynthel-vault-verifier";
   } catch {
     return false;
   }

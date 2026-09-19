@@ -1,6 +1,9 @@
 import { createDefaultWorkspace, type WorkspaceData, workspaceSchema } from "./schema";
 
-export const STORAGE_KEY = "solaris.workspace.open";
+export const STORAGE_KEY = "zynthel.workspace.open";
+// Legacy storage key retained solely for local data migration.
+// 旧品牌名（SOLARIS）更名后，首次启动时把旧 key 下的数据迁移到新 key，避免用户数据丢失。
+export const LEGACY_STORAGE_KEY = "solaris.workspace.open";
 
 export interface WorkspaceRepository {
   get(): WorkspaceData;
@@ -17,6 +20,20 @@ export function createWorkspaceRepository(storage?: Storage): WorkspaceRepositor
 
   const read = (): WorkspaceData => {
     if (cache) return cache;
+    // 数据迁移：新 key 不存在但旧 key 存在时，读取旧数据 → 校验 → 写入新 key。
+    if (target && !target.getItem(STORAGE_KEY)) {
+      const legacy = target.getItem(LEGACY_STORAGE_KEY);
+      if (legacy) {
+        try {
+          const parsed = workspaceSchema.safeParse(JSON.parse(legacy));
+          if (parsed.success) {
+            target.setItem(STORAGE_KEY, JSON.stringify(parsed.data));
+          }
+        } catch {
+          // 旧数据非法则忽略，走默认工作区。
+        }
+      }
+    }
     const raw = target?.getItem(STORAGE_KEY);
     if (!raw) return (cache = createDefaultWorkspace());
     try {

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import HomePage from "./page";
 
-it("renders the SOLARIS final home greeting", () => {
+it("renders the Zynthel final home greeting", () => {
   render(<HomePage />);
   expect(screen.getByRole("heading", { name: "让今天变得更有意义。" })).toBeInTheDocument();
   expect(screen.getByText("专注于此刻，稳步向前。")).toBeInTheDocument();

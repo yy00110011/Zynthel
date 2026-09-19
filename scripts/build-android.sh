@@ -1,5 +1,5 @@
 #!/bin/bash
-# 构建 SOLARIS Android APK（16:9 平板，横屏）
+# 构建 Zynthel Android APK（16:9 平板，横屏）
 # 依赖环境变量：JAVA_HOME / ANDROID_HOME / ANDROID_SDK_ROOT / NDK_HOME / NODE_BIN
 # 未设置时可在下方 BASE 处指定你的本地工具链根目录。
 set -euo pipefail
@@ -9,11 +9,11 @@ PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 本地工具链根目录：指向包含 jdk17/、android-sdk/、node/versions/ 的目录。
 # 请按你的本机安装位置修改，或通过环境变量传入。
-BASE="${SOLARIS_TOOLCHAIN:-}"
+BASE="${ZYNTHEL_TOOLCHAIN:-}"
 NODE_BIN="$(command -v node >/dev/null 2>&1 && dirname "$(command -v node)" || echo "/usr/local/bin")"
 
 if [ -z "$BASE" ]; then
-  echo "提示：未设置 SOLARIS_TOOLCHAIN 或 BASE，将使用环境变量中的 JAVA_HOME/ANDROID_HOME。"
+  echo "提示：未设置 ZYNTHEL_TOOLCHAIN 或 BASE，将使用环境变量中的 JAVA_HOME/ANDROID_HOME。"
 fi
 
 NDK_VERSION="${NDK_VERSION:-27.0.12077973}"

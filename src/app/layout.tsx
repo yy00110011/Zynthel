@@ -11,8 +11,8 @@ import "./final-settings.css";
 import "./life.css";
 
 export const metadata: Metadata = {
-  title: "SOLARIS",
-  description: "Personal Resonance Terminal",
+  title: "Zynthel",
+  description: "Personal workspace terminal",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

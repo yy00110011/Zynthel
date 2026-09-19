@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "SOLARIS Open",
+  "productName": "Zynthel",
   "version": "0.1.0",
-  "identifier": "com.solaris.opensource",
+  "identifier": "com.zynthel.workspace",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://127.0.0.1:3000",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "SOLARIS Open",
+        "title": "Zynthel",
         "width": 1440,
         "height": 900,
         "minWidth": 900,

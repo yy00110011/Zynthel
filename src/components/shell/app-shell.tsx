@@ -35,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return <>
     <div className="app-frame">
       <aside className="sidebar">
-        <div className="brand-mark"><Sparkles/><strong>SOLARIS</strong><span>内测版 · 本地优先工作台</span></div>
+        <div className="brand-mark"><Sparkles/><strong>Zynthel</strong><span>本地优先工作台</span></div>
         <nav className="sidebar-nav">
           {NAV_GROUPS.map((group) => (
             <div className="nav-group" key={group.id}>

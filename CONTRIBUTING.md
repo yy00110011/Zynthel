@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢你对 SOLARIS 项目的关注！欢迎提交 Issue 和 Pull Request。
+感谢你对 Zynthel 项目的关注！欢迎提交 Issue 和 Pull Request。
 
 ## 开发流程
 

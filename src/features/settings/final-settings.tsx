@@ -31,7 +31,7 @@ export function FinalSettings() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `solaris-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `zynthel-backup-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -82,7 +82,7 @@ export function FinalSettings() {
 
   return (
     <div className="page-stack final-settings">
-      <header className="page-heading"><p>SOLARIS 本地配置</p><h1>设置</h1><span>管理本地路径、数据、安全偏好与 AI 模型。</span></header>
+      <header className="page-heading"><p>Zynthel 本地配置</p><h1>设置</h1><span>管理本地路径、数据、安全偏好与 AI 模型。</span></header>
       <div className="settings-grid">
 
         <GlassPanel className="settings-card">
@@ -167,9 +167,9 @@ export function FinalSettings() {
         </GlassPanel>
 
         <GlassPanel className="settings-card wide about-card">
-          <SectionTitle><><Info /> 关于 SOLARIS</></SectionTitle>
+          <SectionTitle><><Info /> 关于 Zynthel</></SectionTitle>
           <div>
-            <h2>SOLARIS <small>开源版 v0.2.0</small></h2>
+            <h2>Zynthel <small>开源版 v0.2.0</small></h2>
             <p>本地优先个人工作台</p>
             <div className="about-section">
               <h3>所需权限</h3>

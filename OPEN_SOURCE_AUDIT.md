@@ -1,4 +1,4 @@
-# SOLARIS Open Source Release Audit
+# Zynthel Open Source Release Audit
 
 > 本报告基于代码、许可证、资源来源、仓库扫描和 Git 历史的工程审计结果。
 > 对于无法仅凭代码审计确认的法律事项（商标、具体司法辖区合规），一律标记为
@@ -91,13 +91,16 @@ Rust 依赖（Cargo.toml）：serde、serde_json、log、url、tauri、tauri-plu
 
 ## 9. Trademark / Project Name
 
-**LEGAL REVIEW REQUIRED**
+**NO OBVIOUS CONFLICT FOUND（新名称）**
 
-- 项目名称：`SOLARIS` / `SOLARIS Open` / `SOLARIS Personal Resonance Terminal`。
-- MIT License 只解决代码版权授权，**不授予第三方商标权，也不能证明项目名称不存在商标冲突**。
-- 无法通过代码审计确认「SOLARIS」是否与软件/计算机领域现有商标存在相同或近似冲突，也无法确认是否造成来源/关联/赞助混淆。
-- **需人工法律复核**：是否存在相同/近似商标；Logo 是否与现有品牌相似；README 是否暗示与第三方官方关系。
-- 若最终需更换品牌名，仅改品牌相关内容，不重构业务代码。
+- **旧名称**：`SOLARIS` / `SOLARIS Open` / `SOLARIS Personal Resonance Terminal`
+  - 处理：已确认在软件/计算机领域存在值得规避的在先权利（Oracle/Sun 的 `SOLARIS` 操作系统商标，USPTO Class 9，状态 Registered and Renewed），公开版已**停止使用**该名称。
+- **新名称**：`Zynthel`
+  - WIPO / CNIPA / USPTO / EUIPO / JPO：联网检索未发现同名或高近似商标（NO OBVIOUS CONFLICT FOUND）。
+  - Web / GitHub / 软件产品同名搜索：未发现同名软件、GitHub 项目、公司或产品。
+  - 查询日期：2026-09-18。
+- **重要声明**：`NO OBVIOUS CONFLICT FOUND` **不等于**法律保证可注册，也不等于全球 100% 无侵权。搜索引擎检索无法覆盖所有官方商标数据库（部分数据库为动态页面，需人工进系统精确复核）。
+- **仍待人工法律复核**：建议在正式注册前，由商标律师在 USPTO / EUIPO / CNIPA / JPO 官方数据库做最终 clearance；Logo 尚未评审（`LOGO NOT REVIEWED`）。
 
 ## 10. Third-Party Brand References
 

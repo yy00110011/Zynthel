@@ -1,17 +1,17 @@
 [package]
-name = "solaris"
+name = "zynthel"
 version = "0.1.0"
-description = "SOLARIS Personal Resonance Terminal"
-authors = ["SOLARIS Project Contributors"]
+description = "Zynthel — personal workspace terminal"
+authors = ["Zynthel Contributors"]
 license = "MIT"
-repository = "https://github.com/solaris-terminal/solaris"
+repository = "https://github.com/zynthel/zynthel"
 edition = "2021"
 rust-version = "1.77.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "solaris_lib"
+name = "zynthel_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

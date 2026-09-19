@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { executeNodeLaunch, validateOrigin } from "./execute-node";
 
 describe("浏览器开发启动器", () => {
-  it("只接受本地 SOLARIS 来源", () => {
+  it("只接受本地 Zynthel 来源", () => {
     expect(validateOrigin("http://127.0.0.1:3000")).toBe(true);
     expect(validateOrigin("http://localhost:3000")).toBe(true);
     expect(validateOrigin("https://example.com")).toBe(false);

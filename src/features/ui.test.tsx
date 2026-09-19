@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AiChatPage } from "./ai/chat";
 
-describe("SOLARIS primary surfaces", () => {
+describe("Zynthel primary surfaces", () => {
   it("AI 对话页在未配置模型时展示引导而非任何预置服务", () => {
     render(<AiChatPage />);
     expect(screen.getByRole("heading", { name: "AI" })).toBeInTheDocument();

@@ -50,9 +50,9 @@ console.log(JSON.stringify(mq, null, 2));
 console.log("console issues:", errors.length ? errors : "none");
 
 const shots = [
-  ["/", "solaris-tablet-home.png"],
-  ["/tools/", "solaris-tablet-tools.png"],
-  ["/settings/", "solaris-tablet-settings.png"],
+  ["/", "zynthel-tablet-home.png"],
+  ["/tools/", "zynthel-tablet-tools.png"],
+  ["/settings/", "zynthel-tablet-settings.png"],
 ];
 
 for (const [route, file] of shots) {

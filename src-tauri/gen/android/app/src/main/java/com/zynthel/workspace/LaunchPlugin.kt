@@ -1,4 +1,4 @@
-package com.solaris.opensource
+package com.zynthel.workspace
 
 import android.app.Activity
 import android.content.ActivityNotFoundException

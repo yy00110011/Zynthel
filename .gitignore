@@ -38,6 +38,7 @@ src-tauri/gen/android.bak*/
 
 # 构建产物 APK（二进制不进 git）
 *.apk
+*.apk.idsig
 
 # 开发预览截图
 screenshots/

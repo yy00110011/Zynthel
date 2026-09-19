@@ -6,7 +6,7 @@ fn launcher_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
   tauri::plugin::Builder::new("launcher")
     .setup(|app, api| {
       let handle = api
-        .register_android_plugin("com.solaris.opensource", "LaunchPlugin")
+        .register_android_plugin("com.zynthel.workspace", "LaunchPlugin")
         .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
       app.manage(launch::android::Launcher(handle));
       Ok(())

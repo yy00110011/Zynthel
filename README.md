@@ -89,7 +89,7 @@ SOLARIS allows users to configure third-party API endpoints. The project does no
 SOLARIS is local-first：
 
 - 工作区数据（任务、项目、笔记、生活工具、密码本、AI 配置与对话记录）默认保存在用户设备本地；
-- 项目本身不运营 SOLARIS 云后端，项目维护者默认不会收到用户的工作区数据；
+- 项目本身不运营 Zynthel 云后端，项目维护者默认不会收到用户的工作区数据；
 - 用户主动调用第三方 AI API 时，相应请求会发送给用户选择的服务商；
 - 第三方服务的数据处理受其自己的条款和隐私政策约束。
 
