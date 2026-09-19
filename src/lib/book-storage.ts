@@ -7,16 +7,30 @@ const VERSION = 1;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+/** 归一化 IndexedDB 错误，识别配额/不可用/事务失败，抛出带语义的 Error */
+function normalizeError(err: unknown, fallback: string): Error {
+  const name = err instanceof DOMException ? err.name : undefined;
+  if (name === "QuotaExceededError") return new Error("存储空间不足（QuotaExceededError）");
+  if (name === "InvalidStateError" || name === "TransactionInactiveError") return new Error("存储事务失败");
+  if (err instanceof Error) return err;
+  return new Error(fallback);
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("打开本地书库失败"));
+    try {
+      const request = indexedDB.open(DB_NAME, VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(normalizeError(request.error, "打开本地书库失败"));
+    } catch (err) {
+      // IndexedDB 不可用（隐私模式 / WebView 禁用存储）
+      reject(normalizeError(err, "本地存储不可用"));
+    }
   });
   return dbPromise;
 }
@@ -24,9 +38,10 @@ function openDb(): Promise<IDBDatabase> {
 function runTx<T>(mode: IDBTransactionMode, operate: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return openDb().then((db) => new Promise<T>((resolve, reject) => {
     const tx = db.transaction(STORE, mode);
+    tx.onabort = () => reject(normalizeError(tx.error, "本地书库事务失败"));
     const request = operate(tx.objectStore(STORE));
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("本地书库读写失败"));
+    request.onerror = () => reject(normalizeError(request.error, "本地书库读写失败"));
   }));
 }
 
@@ -67,4 +82,21 @@ export function supportedFileType(fileName: string): "pdf" | "epub" | "txt" | nu
   if (ext === "epub") return "epub";
   if (ext === "txt" || ext === "md") return "txt";
   return null;
+}
+
+/** 写入多个书籍文件；若任一失败，删除本轮已写入的文件并抛错（保证不写一半）。 */
+export async function putBookFiles(files: { bookId: string; blob: Blob }[]): Promise<void> {
+  const written: string[] = [];
+  try {
+    for (const f of files) {
+      await putBookFile(f.bookId, f.blob);
+      written.push(f.bookId);
+    }
+  } catch (err) {
+    // 回滚：删除本轮已写入的文件
+    for (const id of written) {
+      try { await deleteBookFile(id); } catch { /* 尽力回滚，忽略回滚失败 */ }
+    }
+    throw normalizeError(err, "写入本地书库失败");
+  }
 }

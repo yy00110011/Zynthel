@@ -16,8 +16,8 @@ export function AppPicker({ onClose }: { onClose: () => void }) {
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
   // Portal 到 body：玻璃面板的 backdrop-filter 会把 fixed 弹层退化成局部定位
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // 惰性初始化判断 document 可用性（客户端），避免 effect 内 setState
+  const [mounted] = useState(() => typeof document !== "undefined");
 
   useEffect(() => {
     let active = true;

@@ -6,7 +6,7 @@ import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
 import { useWorkspace } from "@/features/data/use-workspace";
 import { workspaceRepository } from "@/features/data/repository";
 import { exportWorkspace, importWorkspace, buildFullBackup, parseFullBackup, downloadBlob } from "@/features/data/transfer";
-import { getAllBookFiles, putBookFile } from "@/lib/book-storage";
+import { getAllBookFiles, putBookFiles } from "@/lib/book-storage";
 import type { AiModelConfig } from "@/features/data/ai-schema";
 
 export function FinalSettings() {
@@ -65,14 +65,24 @@ export function FinalSettings() {
     setBusy(true);
     try {
       const result = await parseFullBackup(selected);
-      if (!result.ok) { setMessage("恢复失败：不是有效的完整备份文件。"); return; }
-      workspaceRepository.set(result.data);
-      for (const f of result.files) {
-        try { await putBookFile(f.bookId, f.blob); } catch { /* 单个文件恢复失败不阻断整体 */ }
+      if (!result.ok) {
+        const messages: Record<typeof result.error, string> = {
+          "invalid-zip": "恢复失败：备份文件损坏或格式无效。",
+          "unsupported-data": "恢复失败：不是有效的完整备份文件。",
+          "zip-too-large": "恢复失败：备份文件过大。",
+          "too-many-files": "恢复失败：备份文件数量超限。",
+          "file-too-large": "恢复失败：存在超大的书籍文件。",
+          "total-too-large": "恢复失败：书籍文件总大小超限。",
+        };
+        setMessage(messages[result.error]);
+        return;
       }
+      // 保证数据一致性：先写书籍文件（全部成功）→ 最后写 workspace；失败回滚已写文件，不覆盖旧 workspace
+      await putBookFiles(result.files.map((f) => ({ bookId: f.bookId, blob: f.blob })));
+      workspaceRepository.set(result.data);
       setMessage(`完整备份已恢复（含 ${result.files.length} 个书籍文件）。`);
-    } catch {
-      setMessage("恢复失败：文件读取错误。");
+    } catch (err) {
+      setMessage(`恢复失败：${err instanceof Error ? err.message : "文件读取错误"}。`);
     } finally {
       setBusy(false);
     }

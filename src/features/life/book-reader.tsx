@@ -22,16 +22,16 @@ function saveProgress(bookId: string, value: number) {
   localStorage.setItem(PROGRESS_KEY(bookId), String(value));
 }
 
-type ReaderMode = "pdf" | "epub" | "txt";
-
 export function BookReader({ target, onClose }: { target: ReaderTarget; onClose: () => void }) {
   const mode = useMemo(() => supportedFileType(target.fileName), [target.fileName]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [blobUrl, setBlobUrl] = useState("");
+  // 追踪当前活跃的 blob URL，保证切换书籍/关闭/unmount 时都能 revoke，避免内存泄漏
+  const activeUrlRef = useRef<string>("");
   // Portal 到 body：避免玻璃面板的 backdrop-filter 把 fixed 遮罩退化成局部定位
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // 惰性初始化判断 document 可用性（客户端），避免 effect 内 setState
+  const [mounted] = useState(() => typeof document !== "undefined");
 
   const [pdfPage, setPdfPage] = useState(() => loadProgress(target.bookId));
   const [pdfTotal, setPdfTotal] = useState(0);
@@ -40,20 +40,30 @@ export function BookReader({ target, onClose }: { target: ReaderTarget; onClose:
   const [txtTotal, setTxtTotal] = useState(0);
 
   useEffect(() => {
-    let revoked = "";
+    let cancelled = false;
     (async () => {
       try {
         const blob = await getBookFile(target.bookId);
+        if (cancelled) return;
         if (!blob) { setError("找不到文件内容，请重新选择文件添加。"); setLoading(false); return; }
-        revoked = URL.createObjectURL(blob);
-        setBlobUrl(revoked);
+        const url = URL.createObjectURL(blob);
+        // 若已有旧 URL（切换书籍），先 revoke
+        if (activeUrlRef.current) URL.revokeObjectURL(activeUrlRef.current);
+        activeUrlRef.current = url;
+        setBlobUrl(url);
         setLoading(false);
       } catch {
-        setError("读取本地文件失败。");
-        setLoading(false);
+        if (!cancelled) { setError("读取本地文件失败。"); setLoading(false); }
       }
     })();
-    return () => { if (revoked) URL.revokeObjectURL(revoked); };
+    // 卸载或 bookId 变化时 revoke 当前 URL
+    return () => {
+      cancelled = true;
+      if (activeUrlRef.current) {
+        URL.revokeObjectURL(activeUrlRef.current);
+        activeUrlRef.current = "";
+      }
+    };
   }, [target.bookId]);
 
   const goNext = useCallback(() => {
@@ -110,7 +120,7 @@ export function BookReader({ target, onClose }: { target: ReaderTarget; onClose:
         <EpubEngine url={blobUrl} onPercent={(p) => { setEpubPercent(p); saveProgress(target.bookId, p); }} onError={setError} />
       )}
       {!loading && !error && mode === "txt" && (
-        <TxtEngine url={blobUrl} index={txtIndex} total={txtTotal} onReady={setTxtTotal} onNavigate={(i) => { setTxtIndex(i); saveProgress(target.bookId, i); }} />
+        <TxtEngine url={blobUrl} index={txtIndex} onReady={setTxtTotal} />
       )}
 
       {!loading && !error && (mode === "pdf" || mode === "txt") && (
@@ -230,9 +240,9 @@ function EpubEngine({ url, onPercent, onError }: {
 /* ===== TXT/MD 引擎：按字符量分页，左右翻页 ===== */
 const CHARS_PER_PAGE = 1600;
 
-function TxtEngine({ url, index, total, onReady, onNavigate }: {
-  url: string; index: number; total: number;
-  onReady: (n: number) => void; onNavigate: (i: number) => void;
+function TxtEngine({ url, index, onReady }: {
+  url: string; index: number;
+  onReady: (n: number) => void;
 }) {
   const [pages, setPages] = useState<string[]>([]);
 

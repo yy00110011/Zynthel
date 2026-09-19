@@ -33,16 +33,32 @@ function normalizeWeeks(weeks: number[]): number[] {
   return weeks.length >= MAX_WEEKS ? [] : [...weeks].sort((a, b) => a - b);
 }
 
-/** 根据学期起止日期计算今天是本学期第几周（1-20），不在任何学期内则返回 null */
-function currentTermWeek(terms: { name: string; startDate: string; endDate: string }[]): { week: number; termName: string } | null {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+/** 把 yyyy-MM-dd（本地时区）解析为当天 0 点的 Date；非法返回 null */
+export function parseLocalDate(dateStr: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** 两个本地 0 点日期之间的整天数（用整数天数差，避免 DST 造成的毫秒差误差） */
+export function wholeDaysBetween(from: Date, to: Date): number {
+  const a = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+  const b = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.floor((b - a) / 86_400_000);
+}
+
+/** 根据学期起止日期计算今天是本学期第几周（1-20），不在任何学期内则返回 null。
+ *  周次 = floor(整日差 / 7) + 1，第 20 周之后仍返回 20（上限封顶）。today 可注入用于测试。 */
+export function currentTermWeek(terms: { name: string; startDate: string; endDate: string }[], today: Date = new Date()): { week: number; termName: string } | null {
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   for (const term of terms) {
-    const start = new Date(`${term.startDate}T00:00:00`);
-    const end = new Date(`${term.endDate}T23:59:59`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
-    if (today >= start && today <= end) {
-      const week = Math.floor((today.getTime() - start.getTime()) / 86_400_000 / 7) + 1;
+    const start = parseLocalDate(term.startDate);
+    const end = parseLocalDate(term.endDate);
+    if (!start || !end) continue;
+    if (todayStart >= start && todayStart <= end) {
+      const dayDiff = wholeDaysBetween(start, todayStart);
+      const week = Math.floor(dayDiff / 7) + 1;
       return { week: Math.min(Math.max(week, 1), MAX_WEEKS), termName: term.name };
     }
   }

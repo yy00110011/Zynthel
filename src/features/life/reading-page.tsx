@@ -18,6 +18,7 @@ export function ReadingPage() {
   const [author, setAuthor] = useState("");
   const [status, setStatus] = useState<"want" | "reading" | "finished">("want");
   const [note, setNote] = useState("");
+  const [feedback, setFeedback] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const books = data.books;
@@ -40,22 +41,31 @@ export function ReadingPage() {
     setTitle(""); setAuthor(""); setNote("");
   };
 
-  /** 从本地文件选择器选文件加入书单：书名 = 文件名去扩展名，记录原始文件名，内容存 IndexedDB 供应用内阅读 */
+  /** 从本地文件选择器选文件加入书单：书名 = 文件名去扩展名，记录原始文件名，内容存 IndexedDB 供应用内阅读。
+   *  顺序保证：先写 IndexedDB 文件 → 成功后写 workspace metadata → metadata 失败则删除刚写入的 blob。 */
   const addBookFromFile = async (file: File) => {
     const dot = file.name.lastIndexOf(".");
     const name = dot > 0 ? file.name.slice(0, dot) : file.name;
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    // 先写文件；失败直接报错，不落 metadata
     try {
       await putBookFile(id, file);
-    } catch {
-      // 存储失败（如隐私模式/容量不足）时降级为仅记录文件名
+    } catch (err) {
+      setFeedback(`添加失败：${err instanceof Error ? err.message : "文件存储失败"}。`);
+      return;
     }
-    workspaceRepository.update((d) => ({
-      ...d,
-      books: [{ id, title: name.trim() || file.name, author: "", status: "want" as const, rating: 0, progress: 0, note: "", source: "file" as const, fileName: file.name.slice(0, 200), createdAt: now, updatedAt: now }, ...d.books],
-      updatedAt: now,
-    }));
+    // 再写 metadata；失败则回滚刚写入的 blob
+    try {
+      workspaceRepository.update((d) => ({
+        ...d,
+        books: [{ id, title: name.trim() || file.name, author: "", status: "want" as const, rating: 0, progress: 0, note: "", source: "file" as const, fileName: file.name.slice(0, 200), createdAt: now, updatedAt: now }, ...d.books],
+        updatedAt: now,
+      }));
+    } catch {
+      void deleteBookFile(id).catch(() => undefined);
+      setFeedback("添加失败：数据保存失败，请重试。");
+    }
   };
 
   const [readerTarget, setReaderTarget] = useState<ReaderTarget | null>(null);
@@ -67,8 +77,14 @@ export function ReadingPage() {
     }));
   };
 
-  const removeBook = (id: string) => {
-    void deleteBookFile(id).catch(() => undefined);
+  const removeBook = async (id: string) => {
+    // 先删 IndexedDB 文件，再删 metadata；文件删除失败则不删 metadata，避免「metadata 没了但文件残留」
+    try {
+      await deleteBookFile(id);
+    } catch {
+      setFeedback("删除失败：本地文件清理失败，请重试。");
+      return;
+    }
     workspaceRepository.update((d) => ({ ...d, books: d.books.filter((b) => b.id !== id) }));
   };
 
@@ -113,6 +129,7 @@ export function ReadingPage() {
             }}
           />
         </div>
+        {feedback && <p className="inline-message">{feedback}</p>}
       </GlassPanel>
 
       <GlassPanel>
@@ -155,7 +172,7 @@ export function ReadingPage() {
                   <button aria-label="标记在读" onClick={() => updateBook(b.id, { status: b.status === "reading" ? "finished" : "reading" })}>
                     {b.status === "reading" ? "标记读完" : "开始阅读"}
                   </button>
-                  <button aria-label="删除" onClick={() => removeBook(b.id)}><Trash2 /></button>
+                  <button aria-label="删除" onClick={() => void removeBook(b.id)}><Trash2 /></button>
                 </div>
               </div>
             ))}
