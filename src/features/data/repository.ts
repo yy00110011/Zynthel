@@ -29,8 +29,11 @@ export function createWorkspaceRepository(storage?: Storage): WorkspaceRepositor
 
   const set = (next: WorkspaceData) => {
     const validated = workspaceSchema.parse(next);
-    cache = structuredClone(validated);
-    target?.setItem(STORAGE_KEY, JSON.stringify(cache));
+    const snapshot = structuredClone(validated);
+    // 先写盘，成功后再更新内存 cache 并通知监听器。
+    // 若 setItem 抛错，则 cache 与 listeners 都不更新，错误向上传播，避免「假保存」。
+    target?.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    cache = snapshot;
     listeners.forEach((listener) => listener());
   };
 

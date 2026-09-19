@@ -19,18 +19,33 @@ export async function chatCompletion(
 ): Promise<string> {
   const baseUrl = config.baseUrl.replace(/\/+$/, "");
   const endpoint = `${baseUrl}/chat/completions`;
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-      stream: false,
-    }),
-  });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new AiClientError("请求超时，请稍后重试。");
+    }
+    throw error;
+  }
+  clearTimeout(timeout);
 
   if (!response.ok) {
     let detail = "";

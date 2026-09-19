@@ -67,10 +67,13 @@ export function VaultPage() {
     if (!unlockedKey || !vaultMeta) return;
     const t = title.trim();
     if (!t || !password) return;
-    const iv = vaultMeta.iv;
-    const passwordCipher = await encryptText(unlockedKey, iv, password);
-    const urlCipher = await encryptText(unlockedKey, iv, url.trim());
-    const noteCipher = await encryptText(unlockedKey, iv, note.trim());
+    // 每个敏感字段独立 IV，避免在同一 AES-GCM key 下重用 nonce。
+    const passwordIv = generateIv();
+    const urlIv = generateIv();
+    const noteIv = generateIv();
+    const passwordCipher = await encryptText(unlockedKey, passwordIv, password);
+    const urlCipher = await encryptText(unlockedKey, urlIv, url.trim());
+    const noteCipher = await encryptText(unlockedKey, noteIv, note.trim());
     workspaceRepository.update((d) => ({
       ...d,
       vaultEntries: [...d.vaultEntries, {
@@ -80,6 +83,9 @@ export function VaultPage() {
         passwordCipher,
         urlCipher,
         noteCipher,
+        passwordIv,
+        urlIv,
+        noteIv,
         category: category.trim(),
         createdAt: new Date().toISOString(),
       }],
@@ -98,19 +104,22 @@ export function VaultPage() {
     setRevealId(id);
   };
 
-  const decryptPassword = async (entry: { passwordCipher: string }): Promise<string> => {
+  const decryptPassword = async (entry: { passwordCipher: string; passwordIv: string }): Promise<string> => {
     if (!unlockedKey || !vaultMeta) return "";
     try {
-      return await decryptText(unlockedKey, vaultMeta.iv, entry.passwordCipher);
+      // 新数据用条目自己的 IV，旧数据（无独立 IV）回退 vaultMeta.iv。
+      const iv = entry.passwordIv || vaultMeta.iv;
+      return await decryptText(unlockedKey, iv, entry.passwordCipher);
     } catch {
       return "";
     }
   };
 
-  const copyPassword = async (cipher: string) => {
+  const copyPassword = async (entry: { passwordCipher: string; passwordIv: string }) => {
     if (!unlockedKey || !vaultMeta) return;
     try {
-      const plain = await decryptText(unlockedKey, vaultMeta.iv, cipher);
+      const iv = entry.passwordIv || vaultMeta.iv;
+      const plain = await decryptText(unlockedKey, iv, entry.passwordCipher);
       await navigator.clipboard.writeText(plain);
     } catch {
       // ignore
@@ -185,9 +194,9 @@ export function VaultPage() {
                 entry={e}
                 revealed={revealId === e.id}
                 onToggleReveal={() => void revealPassword(e.id)}
-                onCopy={() => void copyPassword(e.passwordCipher)}
+                onCopy={() => void copyPassword({ passwordCipher: e.passwordCipher, passwordIv: e.passwordIv })}
                 onRemove={() => removeEntry(e.id)}
-                decryptPassword={(cipher) => decryptPassword({ passwordCipher: cipher })}
+                decryptPassword={(entry) => decryptPassword(entry)}
               />
             ))}
           </div>
@@ -198,12 +207,12 @@ export function VaultPage() {
 }
 
 function VaultRow({ entry, revealed, onToggleReveal, onCopy, onRemove, decryptPassword }: {
-  entry: { id: string; title: string; username: string; passwordCipher: string; urlCipher: string; noteCipher: string; category: string };
+  entry: { id: string; title: string; username: string; passwordCipher: string; urlCipher: string; noteCipher: string; passwordIv: string; category: string };
   revealed: boolean;
   onToggleReveal: () => void;
   onCopy: () => void;
   onRemove: () => void;
-  decryptPassword: (cipher: string) => Promise<string>;
+  decryptPassword: (entry: { passwordCipher: string; passwordIv: string }) => Promise<string>;
 }) {
   const [plain, setPlain] = useState<string | null>(null);
   return (
@@ -216,7 +225,7 @@ function VaultRow({ entry, revealed, onToggleReveal, onCopy, onRemove, decryptPa
       </div>
       {entry.category && <span className="vault-category">{entry.category}</span>}
       <button aria-label="显示/隐藏" onClick={() => {
-        if (!revealed) void decryptPassword(entry.passwordCipher).then(setPlain);
+        if (!revealed) void decryptPassword({ passwordCipher: entry.passwordCipher, passwordIv: entry.passwordIv }).then(setPlain);
         onToggleReveal();
       }}>{revealed ? <EyeOff /> : <Eye />}</button>
       <button aria-label="复制" onClick={onCopy}><Copy /></button>

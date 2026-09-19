@@ -12,13 +12,18 @@ export function AppPicker({ onClose }: { onClose: () => void }) {
   const data = useWorkspace();
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
     let active = true;
     void listInstalledApps().then((result) => {
       if (!active) return;
-      setApps(result);
+      if (result.status === "ok") {
+        setApps(result.apps);
+      } else {
+        setFailed(true);
+      }
       setLoading(false);
     });
     return () => { active = false; };
@@ -59,8 +64,9 @@ export function AppPicker({ onClose }: { onClose: () => void }) {
       /></label>
       <div className="app-picker-list">
         {loading && <p className="app-picker-empty"><Loader2 className="spin" /> 正在读取已安装应用…</p>}
-        {!loading && !apps.length && <p className="app-picker-empty">没有读到应用列表。请在工具页用「Android 应用」类型手动填写包名。</p>}
-        {!loading && apps.length > 0 && !visible.length && <p className="app-picker-empty">没有匹配「{query}」的应用。</p>}
+        {!loading && failed && <p className="app-picker-empty">获取应用列表失败，请重试。</p>}
+        {!loading && !failed && !apps.length && <p className="app-picker-empty">没有读到应用列表。请在工具页用「Android 应用」类型手动填写包名。</p>}
+        {!loading && !failed && apps.length > 0 && !visible.length && <p className="app-picker-empty">没有匹配「{query}」的应用。</p>}
         {visible.map((app) => <button
           key={app.packageName}
           className="app-picker-item"

@@ -51,10 +51,14 @@ pub struct AppStatus { pub id: String, pub name: String, pub path: String, pub i
 
 pub fn validate_url(value: &str) -> Result<(), LaunchError> {
   validate_argument(value)?;
-  if value.starts_with("https://") || value.starts_with("http://") {
-    Ok(())
-  } else {
-    Err(LaunchError::InvalidUrl)
+  // 严格 URL 校验：仅允许 http/https，且要求存在合法 host。
+  // 拒绝 file:/content:/javascript:/intent:/data:/ftp:/obsidian: 以及空 host 的 malformed URL。
+  let parsed = url::Url::parse(value).map_err(|_| LaunchError::InvalidUrl)?;
+  match parsed.scheme() {
+    "http" | "https" => {
+      if parsed.host_str().is_some() { Ok(()) } else { Err(LaunchError::InvalidUrl) }
+    }
+    _ => Err(LaunchError::InvalidUrl),
   }
 }
 
@@ -70,8 +74,8 @@ pub fn validate_argument(value: &str) -> Result<(), LaunchError> {
 
 #[cfg(target_os = "android")]
 pub mod android {
-  use tauri::{plugin::PluginHandle, Manager, Runtime};
-  use super::{InstalledApp, LaunchError, LaunchResult};
+  use tauri::{plugin::PluginHandle, Runtime};
+  use super::{parse_ok_field, InstalledApp, LaunchError, LaunchResult};
 
   #[derive(Clone)]
   pub struct Launcher<R: Runtime>(pub PluginHandle<R>);
@@ -155,17 +159,15 @@ pub fn launch_resource(app: tauri::AppHandle, request: LaunchEnvelope) -> Result
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-pub fn list_android_apps(app: tauri::AppHandle) -> Vec<InstalledApp> {
-  match app.try_state::<android::Launcher<tauri::Wry>>() {
-    Some(state) => android::apps(&state.0),
-    None => Vec::new(),
-  }
+pub fn list_android_apps(app: tauri::AppHandle) -> Result<Vec<InstalledApp>, LaunchError> {
+  let state = app.try_state::<android::Launcher<tauri::Wry>>().ok_or(LaunchError::Unsupported)?;
+  android::apps(&state.0)
 }
 
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub fn list_android_apps() -> Vec<InstalledApp> {
-  Vec::new()
+pub fn list_android_apps() -> Result<Vec<InstalledApp>, LaunchError> {
+  Ok(Vec::new())
 }
 
 /* ------------------------------ Desktop ---------------------------- */
@@ -258,6 +260,25 @@ mod tests {
     assert!(validate_url("https://example.com").is_ok());
     assert!(validate_url("http://example.com").is_ok());
     assert_eq!(validate_url("file:///etc/passwd"), Err(LaunchError::InvalidUrl));
+  }
+
+  #[test]
+  fn rejects_dangerous_schemes_and_malformed_urls() {
+    for bad in [
+      "file:///etc/passwd",
+      "content://media/external",
+      "javascript:alert(1)",
+      "intent://scan/#Intent",
+      "data:text/html,<script>alert(1)</script>",
+      "ftp://example.com/file",
+      "obsidian://open?vault=x",
+      "not a url",
+      "",
+      "https://",
+      "http://",
+    ] {
+      assert_eq!(validate_url(bad), Err(LaunchError::InvalidUrl), "should reject: {bad}");
+    }
   }
 
   #[test]

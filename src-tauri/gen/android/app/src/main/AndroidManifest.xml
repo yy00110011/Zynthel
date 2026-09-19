@@ -2,8 +2,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- 枚举已安装应用（App Picker）：Android 11+ 需要此权限才能列出完整应用列表。 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <!-- Android 11+ 包可见性：不声明则 ACTION_VIEW https 找不到浏览器应用 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
 
     <application
         android:icon="@mipmap/ic_launcher"

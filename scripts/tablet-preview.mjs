@@ -60,7 +60,10 @@ for (const [route, file] of shots) {
   await page.waitForTimeout(900);
   const overflow = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
   console.log(route, "vertical overflow:", overflow);
-  await page.screenshot({ path: `/Users/yanzhi/WorkBuddy/2026-09-18-18-54-54/${file}` });
+  // 截图输出目录：默认项目内 screenshots/，可用 SCREENSHOT_DIR 覆盖。
+  const outDir = process.env.SCREENSHOT_DIR || path.join(root, "..", "screenshots");
+  fs.mkdirSync(outDir, { recursive: true });
+  await page.screenshot({ path: path.join(outDir, file) });
 }
 
 await browser.close();

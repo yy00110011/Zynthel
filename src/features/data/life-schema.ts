@@ -126,7 +126,8 @@ export const bookSchema = z.object({
 export const vaultMetaSchema = z.object({
   salt: z.string(),
   iv: z.string(),
-  iterations: z.number().int().positive(),
+  // 限制合理范围，防止损坏/恶意导入的极端 iterations 导致解锁长时间卡死。
+  iterations: z.number().int().min(100_000).max(1_000_000),
   verifier: z.string(), // 用于校验主密码是否正确
 });
 
@@ -137,6 +138,10 @@ export const vaultEntrySchema = z.object({
   passwordCipher: z.string(), // AES-GCM 加密后的 base64
   urlCipher: z.string(),
   noteCipher: z.string(),
+  // 每个敏感字段独立 IV（默认空字符串兼容旧数据，旧数据回退 vaultMeta.iv 解密）。
+  passwordIv: z.string().default(""),
+  urlIv: z.string().default(""),
+  noteIv: z.string().default(""),
   category: z.string().default(""),
   createdAt: timestamp,
 });

@@ -1,16 +1,26 @@
 #!/bin/bash
 # 构建 SOLARIS Android APK（16:9 平板，横屏）
+# 依赖环境变量：JAVA_HOME / ANDROID_HOME / ANDROID_SDK_ROOT / NDK_HOME / NODE_BIN
+# 未设置时可在下方 BASE 处指定你的本地工具链根目录。
 set -euo pipefail
 
-BASE=/Users/yanzhi/.workbuddy/binaries
-PROJECT="/Users/yanzhi/Documents/Codex/2026-09-18/superpowers-plugin-superpowers-openai-curated-remote"
-NODE_BIN=/Users/yanzhi/.workbuddy/binaries/node/versions/22.22.2-3/bin
+# 项目根目录（脚本位于 scripts/，上一级即项目根）
+PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
 
-NDK_VERSION="$(cat "$BASE/ndk-version.txt" 2>/dev/null || echo 27.0.12077973)"
-export JAVA_HOME="$BASE/jdk17"
-export ANDROID_HOME="$BASE/android-sdk"
-export ANDROID_SDK_ROOT="$ANDROID_HOME"
-export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+# 本地工具链根目录：指向包含 jdk17/、android-sdk/、node/versions/ 的目录。
+# 请按你的本机安装位置修改，或通过环境变量传入。
+BASE="${SOLARIS_TOOLCHAIN:-}"
+NODE_BIN="$(command -v node >/dev/null 2>&1 && dirname "$(command -v node)" || echo "/usr/local/bin")"
+
+if [ -z "$BASE" ]; then
+  echo "提示：未设置 SOLARIS_TOOLCHAIN 或 BASE，将使用环境变量中的 JAVA_HOME/ANDROID_HOME。"
+fi
+
+NDK_VERSION="${NDK_VERSION:-27.0.12077973}"
+: "${JAVA_HOME:?请设置 JAVA_HOME}"
+: "${ANDROID_HOME:?请设置 ANDROID_HOME}"
+export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+export NDK_HOME="${NDK_HOME:-$ANDROID_HOME/ndk/$NDK_VERSION}"
 export PATH="$JAVA_HOME/bin:$NODE_BIN:$PATH"
 export NEXT_PUBLIC_TARGET_PLATFORM=android
 

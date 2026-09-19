@@ -82,6 +82,19 @@ pnpm build
 
 本项目**仅提供通用配置入口**，需用户自行配置 API 接口地址与密钥。官方不提供任何云端 AI 服务，不内置任何端点、密钥或境外服务。用户接入什么 API 即使用什么模型，完全自主。
 
+SOLARIS allows users to configure third-party API endpoints. The project does not provide, resell, or proxy third-party API accounts or API keys. When a user configures and uses a third-party API, requests are sent directly to the service selected by the user. Use of that service is subject to the applicable provider's terms, policies, pricing, and privacy practices. SOLARIS is not affiliated with, endorsed by, or sponsored by third-party service providers unless explicitly stated otherwise.
+
+## 数据与隐私（Data & Privacy）
+
+SOLARIS is local-first：
+
+- 工作区数据（任务、项目、笔记、生活工具、密码本、AI 配置与对话记录）默认保存在用户设备本地；
+- 项目本身不运营 SOLARIS 云后端，项目维护者默认不会收到用户的工作区数据；
+- 用户主动调用第三方 AI API 时，相应请求会发送给用户选择的服务商；
+- 第三方服务的数据处理受其自己的条款和隐私政策约束。
+
+> **关于 AI API 密钥**：API Key 保存在设备本地应用存储（localStorage）中，属于应用数据级存储，并非操作系统安全密钥库（如 Keystore/Keychain）级别保护。请勿在不受信任的设备上配置高价值密钥。
+
 ## 免责声明
 
 本项目为开源学习项目，按 MIT 协议分发，不提供任何担保。使用者自行编译 APK，自行承担使用风险。

@@ -2,6 +2,7 @@
   "name": "solaris-personal-resonance-terminal",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n web,launcher \"pnpm dev:web\" \"pnpm dev:launcher\"",

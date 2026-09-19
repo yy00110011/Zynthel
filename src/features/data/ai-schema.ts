@@ -7,7 +7,14 @@ export const aiModelConfigSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1).max(60),
   provider: z.string().trim().max(40).default("openai"),
-  baseUrl: z.string().trim().min(1),
+  baseUrl: z.string().trim().min(1).refine((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "baseUrl 必须是合法的 http/https 地址"),
   apiKey: z.string(), // 明文存本地（用户已确认）
   model: z.string().trim().min(1).max(80),
   createdAt: timestamp,

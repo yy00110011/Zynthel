@@ -1,7 +1,8 @@
 # SOLARIS 开源版 —— 后端源码审查包
 > 供第三方 AI / 开发者进行代码安全与正确性审查。
-> 项目：本地优先个人工作台（Tauri 2 + Next.js），Android 优先。
-> 协议：MIT。仓库：https://github.com/solaris-terminal/solaris
+> 项目：本地优先个人工作台（Tauri 2 + Next.js），Android 优先，MIT 开源分发。
+> 开源版：合规减法版（无 Obsidian、无境外 AI 服务、主题用中性名、版权素材已剥离）。
+> 与内测版差异：包名 com.solaris.opensource、STORAGE_KEY solaris.workspace.open、无 obsidian:// scheme、无 ai-center/services 境外服务、主题保留 3 个但改中性名。
 
 ---
 
@@ -156,7 +157,7 @@ pub mod android {
     let response: serde_json::Value = handle
       .run_mobile_plugin(command, payload)
       .map_err(|_| LaunchError::LaunchFailed)?;
-    let ok = response.get("ok").and_then(|value| value.as_bool()).unwrap_or(true);
+    let ok = parse_ok_field(&response)?;
     Ok(LaunchResult { ok })
   }
 
@@ -173,13 +174,24 @@ pub mod android {
       .unwrap_or(false)
   }
 
-  pub fn apps<R: Runtime>(handle: &PluginHandle<R>) -> Vec<InstalledApp> {
-    handle
+  pub fn apps<R: Runtime>(handle: &PluginHandle<R>) -> Result<Vec<InstalledApp>, LaunchError> {
+    let response: serde_json::Value = handle
       .run_mobile_plugin::<serde_json::Value>("listInstalledApps", serde_json::json!({}))
-      .ok()
-      .and_then(|value| value.get("apps").cloned())
-      .and_then(|apps| serde_json::from_value::<Vec<InstalledApp>>(apps).ok())
-      .unwrap_or_default()
+      .map_err(|_| LaunchError::LaunchFailed)?;
+    let apps = response
+      .get("apps")
+      .ok_or(LaunchError::LaunchFailed)?;
+    serde_json::from_value::<Vec<InstalledApp>>(apps.clone())
+      .map_err(|_| LaunchError::LaunchFailed)
+  }
+}
+
+/// 严格解析 Kotlin 插件响应里的 `ok` 字段：必须是布尔值，否则视为启动失败。
+/// 避免把异常响应（`{}` / `ok` 类型错）误判为成功。
+fn parse_ok_field(response: &serde_json::Value) -> Result<bool, LaunchError> {
+  match response.get("ok") {
+    Some(serde_json::Value::Bool(value)) => Ok(*value),
+    _ => Err(LaunchError::LaunchFailed),
   }
 }
 
@@ -1378,6 +1390,406 @@ export async function chatCompletion(
     throw new AiClientError("响应格式无法解析");
   }
   return content;
+}
+
+```
+
+---
+
+## 文件：`src/features/life/vault-page.tsx`
+
+```tsx
+"use client";
+
+import { Plus, Trash2, KeyRound, Lock, Shield, Eye, EyeOff, Wand2, Copy } from "lucide-react";
+import { useState } from "react";
+import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
+import { useWorkspace } from "@/features/data/use-workspace";
+import { workspaceRepository } from "@/features/data/repository";
+import {
+  deriveKey, generateSalt, generateIv, encryptText, decryptText,
+  makeVerifier, verifyMasterPassword, generatePassword,
+} from "@/features/data/crypto";
+
+export function VaultPage() {
+  const data = useWorkspace();
+  const vaultMeta = data.vaultMeta;
+  const [masterPassword, setMasterPassword] = useState("");
+  const [unlockedKey, setUnlockedKey] = useState<CryptoKey | null>(null);
+  const [error, setError] = useState("");
+
+  // 新建条目表单
+  const [title, setTitle] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [url, setUrl] = useState("");
+  const [note, setNote] = useState("");
+  const [category, setCategory] = useState("");
+  const [revealId, setRevealId] = useState<string | null>(null);
+
+  const hasVault = vaultMeta !== null;
+  const isUnlocked = unlockedKey !== null;
+
+  // 初始化主密码（首次使用）
+  const initVault = async () => {
+    const pw = masterPassword;
+    if (!pw) return;
+    const salt = generateSalt();
+    const iv = generateIv();
+    const iterations = 150000;
+    const key = await deriveKey(pw, salt, iterations);
+    const verifier = await makeVerifier(key, iv);
+    workspaceRepository.update((d) => ({
+      ...d,
+      vaultMeta: { salt, iv, iterations, verifier },
+      vaultEntries: [],
+      updatedAt: new Date().toISOString(),
+    }));
+    setUnlockedKey(key);
+    setMasterPassword("");
+    setError("");
+  };
+
+  // 解锁
+  const unlock = async () => {
+    if (!vaultMeta) return;
+    const ok = await verifyMasterPassword(masterPassword, vaultMeta.salt, vaultMeta.iterations, vaultMeta.iv, vaultMeta.verifier);
+    if (!ok) {
+      setError("主密码错误，请重试。");
+      return;
+    }
+    const key = await deriveKey(masterPassword, vaultMeta.salt, vaultMeta.iterations);
+    setUnlockedKey(key);
+    setMasterPassword("");
+    setError("");
+  };
+
+  const addEntry = async () => {
+    if (!unlockedKey || !vaultMeta) return;
+    const t = title.trim();
+    if (!t || !password) return;
+    const iv = vaultMeta.iv;
+    const passwordCipher = await encryptText(unlockedKey, iv, password);
+    const urlCipher = await encryptText(unlockedKey, iv, url.trim());
+    const noteCipher = await encryptText(unlockedKey, iv, note.trim());
+    workspaceRepository.update((d) => ({
+      ...d,
+      vaultEntries: [...d.vaultEntries, {
+        id: crypto.randomUUID(),
+        title: t,
+        username: username.trim(),
+        passwordCipher,
+        urlCipher,
+        noteCipher,
+        category: category.trim(),
+        createdAt: new Date().toISOString(),
+      }],
+      updatedAt: new Date().toISOString(),
+    }));
+    setTitle(""); setUsername(""); setPassword(""); setUrl(""); setNote(""); setCategory("");
+  };
+
+  const removeEntry = (id: string) => {
+    workspaceRepository.update((d) => ({ ...d, vaultEntries: d.vaultEntries.filter((e) => e.id !== id) }));
+  };
+
+  const revealPassword = async (id: string) => {
+    if (!unlockedKey || !vaultMeta) return;
+    if (revealId === id) { setRevealId(null); return; }
+    setRevealId(id);
+  };
+
+  const decryptPassword = async (entry: { passwordCipher: string }): Promise<string> => {
+    if (!unlockedKey || !vaultMeta) return "";
+    try {
+      return await decryptText(unlockedKey, vaultMeta.iv, entry.passwordCipher);
+    } catch {
+      return "";
+    }
+  };
+
+  const copyPassword = async (cipher: string) => {
+    if (!unlockedKey || !vaultMeta) return;
+    try {
+      const plain = await decryptText(unlockedKey, vaultMeta.iv, cipher);
+      await navigator.clipboard.writeText(plain);
+    } catch {
+      // ignore
+    }
+  };
+
+  // 首次：设置主密码
+  if (!hasVault) {
+    return (
+      <div className="page-stack">
+        <header className="page-heading"><p>本地加密</p><h1>密码本</h1><span>所有密码使用本地主密码加密存储，不上传云端。</span></header>
+        <GlassPanel className="vault-setup">
+          <SectionTitle><><Lock /> 设置主密码</></SectionTitle>
+          <p className="settings-copy">请设置一个主密码用于加密你的密码本。主密码不会被存储，忘记后数据将无法恢复。</p>
+          <div className="vault-form">
+            <input aria-label="主密码" type="password" value={masterPassword} onChange={(e) => setMasterPassword(e.target.value)} placeholder="输入主密码" />
+            <button className="primary-action" onClick={() => void initVault()}><Shield /> 创建密码本</button>
+          </div>
+          {error && <p className="inline-message">{error}</p>}
+        </GlassPanel>
+      </div>
+    );
+  }
+
+  // 已设置但未解锁
+  if (!isUnlocked) {
+    return (
+      <div className="page-stack">
+        <header className="page-heading"><p>本地加密</p><h1>密码本</h1><span>输入主密码解锁你的密码本。</span></header>
+        <GlassPanel className="vault-setup">
+          <SectionTitle><><Lock /> 解锁</></SectionTitle>
+          <div className="vault-form">
+            <input aria-label="主密码" type="password" value={masterPassword} onChange={(e) => setMasterPassword(e.target.value)} placeholder="输入主密码" onKeyDown={(e) => { if (e.key === "Enter") void unlock(); }} />
+            <button className="primary-action" onClick={() => void unlock()}><KeyRound /> 解锁</button>
+          </div>
+          {error && <p className="inline-message">{error}</p>}
+        </GlassPanel>
+      </div>
+    );
+  }
+
+  // 已解锁
+  return (
+    <div className="page-stack">
+      <header className="page-heading"><p>本地加密</p><h1>密码本</h1><span>已解锁，敏感信息默认掩码显示。</span></header>
+
+      <GlassPanel>
+        <SectionTitle>添加密码</SectionTitle>
+        <div className="vault-form">
+          <input aria-label="标题" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="标题（如：邮箱、银行）" />
+          <input aria-label="用户名" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="用户名" />
+          <div className="vault-password-row">
+            <input aria-label="密码" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="密码" />
+            <button type="button" onClick={() => setPassword(generatePassword(16))} title="生成随机密码"><Wand2 /></button>
+          </div>
+          <input aria-label="网址" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="网址（可选）" />
+          <input aria-label="分类" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="分类（可选）" />
+          <input aria-label="备注" value={note} onChange={(e) => setNote(e.target.value)} placeholder="备注（可选）" />
+          <button className="primary-action" onClick={() => void addEntry()}><Plus /> 保存</button>
+        </div>
+      </GlassPanel>
+
+      <GlassPanel>
+        <SectionTitle>密码列表</SectionTitle>
+        {data.vaultEntries.length === 0 ? (
+          <p className="ledger-empty">还没有保存的密码。</p>
+        ) : (
+          <div className="vault-list">
+            {data.vaultEntries.map((e) => (
+              <VaultRow
+                key={e.id}
+                entry={e}
+                revealed={revealId === e.id}
+                onToggleReveal={() => void revealPassword(e.id)}
+                onCopy={() => void copyPassword(e.passwordCipher)}
+                onRemove={() => removeEntry(e.id)}
+                decryptPassword={(cipher) => decryptPassword({ passwordCipher: cipher })}
+              />
+            ))}
+          </div>
+        )}
+      </GlassPanel>
+    </div>
+  );
+}
+
+function VaultRow({ entry, revealed, onToggleReveal, onCopy, onRemove, decryptPassword }: {
+  entry: { id: string; title: string; username: string; passwordCipher: string; urlCipher: string; noteCipher: string; category: string };
+  revealed: boolean;
+  onToggleReveal: () => void;
+  onCopy: () => void;
+  onRemove: () => void;
+  decryptPassword: (cipher: string) => Promise<string>;
+}) {
+  const [plain, setPlain] = useState<string | null>(null);
+  return (
+    <div className="vault-item">
+      <span className="vault-icon"><Lock /></span>
+      <div className="vault-main">
+        <strong>{entry.title}</strong>
+        {entry.username && <small>{entry.username}</small>}
+        <span className="vault-password">{revealed ? (plain ?? "••••••••") : "••••••••"}</span>
+      </div>
+      {entry.category && <span className="vault-category">{entry.category}</span>}
+      <button aria-label="显示/隐藏" onClick={() => {
+        if (!revealed) void decryptPassword(entry.passwordCipher).then(setPlain);
+        onToggleReveal();
+      }}>{revealed ? <EyeOff /> : <Eye />}</button>
+      <button aria-label="复制" onClick={onCopy}><Copy /></button>
+      <button aria-label="删除" onClick={onRemove}><Trash2 /></button>
+    </div>
+  );
+}
+
+```
+
+---
+
+## 文件：`src/features/themes/registry.ts`
+
+```typescript
+import type { ThemeId } from "../data/schema";
+
+export type ThemeDefinition = {
+  label: string;
+  character: string;
+  tokens: Record<"base" | "surface" | "surfaceStrong" | "text" | "muted" | "accent" | "accentSoft" | "border" | "glow" | "heroStart" | "heroEnd", string>;
+};
+
+export const THEMES: Record<ThemeId, ThemeDefinition> = {
+  "peach-bloom": {
+    label: "蜜桃 · 晨曦", character: "Peach",
+    tokens: { base: "#0d0b13", surface: "rgba(31,24,37,.62)", surfaceStrong: "rgba(38,29,44,.84)", text: "#fff8fb", muted: "#c8bbc6", accent: "#ff9fbe", accentSoft: "#ffd0de", border: "rgba(255,188,210,.3)", glow: "rgba(255,126,172,.24)", heroStart: "#331c32", heroEnd: "#17101f" },
+  },
+  "dark-purple": {
+    label: "幽紫 · 夜幕", character: "Violet",
+    tokens: { base: "#0b0913", surface: "rgba(25,20,40,.64)", surfaceStrong: "rgba(31,24,50,.84)", text: "#fbf7ff", muted: "#bdb3cf", accent: "#b894ff", accentSoft: "#d8c8ff", border: "rgba(190,157,255,.3)", glow: "rgba(132,84,230,.26)", heroStart: "#281a45", heroEnd: "#100d1c" },
+  },
+  ember: {
+    label: "余烬 · 暖阳", character: "Ember",
+    tokens: { base: "#120b0d", surface: "rgba(39,24,26,.64)", surfaceStrong: "rgba(48,29,30,.84)", text: "#fff9f6", muted: "#ccb9b2", accent: "#ff8f75", accentSoft: "#ffc0ad", border: "rgba(255,158,129,.3)", glow: "rgba(238,83,54,.24)", heroStart: "#4a201c", heroEnd: "#1b0d12" },
+  },
+};
+
+export function applyTheme(theme: ThemeId, root: HTMLElement = document.documentElement) {
+  const definition = THEMES[theme];
+  root.dataset.theme = theme;
+  Object.entries(definition.tokens).forEach(([key, value]) => {
+    root.style.setProperty(`--${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`, value);
+  });
+}
+
+```
+
+---
+
+## 文件：`src/lib/installed-apps.ts`
+
+```typescript
+import { isTauriRuntime } from "./runtime";
+
+export type InstalledApp = {
+  name: string;
+  packageName: string;
+  icon: string | null;
+};
+
+export async function listInstalledApps(): Promise<InstalledApp[]> {
+  if (!isTauriRuntime()) return [];
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const response = await invoke<{ apps?: InstalledApp[] }>("list_android_apps");
+    return response.apps ?? [];
+  } catch {
+    return [];
+  }
+}
+
+```
+
+---
+
+## 文件：`src/lib/open-launch.ts`
+
+```typescript
+import type { LaunchMethod } from "@/features/data/schema";
+import { launchResource } from "./desktop-launch";
+
+export async function openLaunch(launch: LaunchMethod) {
+  return launchResource(launch);
+}
+
+```
+
+---
+
+## 文件：`src/features/tools/app-picker.tsx`
+
+```tsx
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Loader2, Search, Smartphone, X } from "lucide-react";
+import { GlassPanel } from "@/components/ui/glass-panel";
+import { addTool } from "./model";
+import { useWorkspace } from "@/features/data/use-workspace";
+import { workspaceRepository } from "@/features/data/repository";
+import { listInstalledApps, type InstalledApp } from "@/lib/installed-apps";
+
+export function AppPicker({ onClose }: { onClose: () => void }) {
+  const data = useWorkspace();
+  const [apps, setApps] = useState<InstalledApp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void listInstalledApps().then((result) => {
+      if (!active) return;
+      setApps(result);
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const owned = useMemo(
+    () => new Set(data.tools.map((tool) => (tool.launch.type === "android-app" ? tool.launch.packageName : ""))),
+    [data.tools],
+  );
+
+  const visible = apps.filter((app) => `${app.name} ${app.packageName}`.toLowerCase().includes(query.trim().toLowerCase()));
+
+  const pick = (app: InstalledApp) => {
+    workspaceRepository.set(addTool(data, {
+      name: app.name,
+      icon: "smartphone",
+      launch: {
+        type: "android-app",
+        packageName: app.packageName,
+        fallbackUrl: `https://play.google.com/store/apps/details?id=${app.packageName}`,
+      },
+    }));
+    onClose();
+  };
+
+  return <div className="dialog-backdrop" onMouseDown={onClose}>
+    <GlassPanel className="confirm-dialog app-picker" onMouseDown={(event) => event.stopPropagation()}>
+      <header className="app-picker-head">
+        <h2>本机应用</h2>
+        <button aria-label="关闭" onClick={onClose}><X /></button>
+      </header>
+      <label className="app-picker-search"><Search /><input
+        autoFocus
+        aria-label="搜索已安装应用"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="搜索应用…"
+      /></label>
+      <div className="app-picker-list">
+        {loading && <p className="app-picker-empty"><Loader2 className="spin" /> 正在读取已安装应用…</p>}
+        {!loading && !apps.length && <p className="app-picker-empty">没有读到应用列表。请在工具页用「Android 应用」类型手动填写包名。</p>}
+        {!loading && apps.length > 0 && !visible.length && <p className="app-picker-empty">没有匹配「{query}」的应用。</p>}
+        {visible.map((app) => <button
+          key={app.packageName}
+          className="app-picker-item"
+          disabled={owned.has(app.packageName)}
+          onClick={() => pick(app)}
+        >
+          <span className="app-picker-icon">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {app.icon ? <img src={`data:image/png;base64,${app.icon}`} alt="" /> : <Smartphone size={20} />}
+          </span>
+          <span className="app-picker-meta"><strong>{app.name}</strong><small>{app.packageName}</small></span>
+          <em>{owned.has(app.packageName) ? "已添加" : "添加"}</em>
+        </button>)}
+      </div>
+    </GlassPanel>
+  </div>;
 }
 
 ```

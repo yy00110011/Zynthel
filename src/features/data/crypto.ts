@@ -105,7 +105,7 @@ export async function verifyMasterPassword(
   }
 }
 
-/** 随机密码生成器。 */
+/** 随机密码生成器（rejection sampling 消除 modulo bias）。 */
 export function generatePassword(length = 16, opts?: {
   upper?: boolean;
   lower?: boolean;
@@ -122,10 +122,16 @@ export function generatePassword(length = 16, opts?: {
   if (digits) pool += "0123456789";
   if (symbols) pool += "!@#$%^&*()-_=+";
   if (!pool) pool = "abcdefghijklmnopqrstuvwxyz0123456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
+
+  // 只有能被 pool.length 均匀映射的随机值才使用，超出范围的直接丢弃重取。
+  const limit = Math.floor(256 / pool.length) * pool.length;
   let result = "";
-  for (let i = 0; i < length; i++) {
-    result += pool[bytes[i] % pool.length];
+  while (result.length < length) {
+    const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
+    for (let i = 0; i < bytes.length && result.length < length; i++) {
+      if (bytes[i] >= limit) continue;
+      result += pool[bytes[i] % pool.length];
+    }
   }
   return result;
 }
