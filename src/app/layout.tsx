@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/shell/app-shell";
+import { ThemeProvider } from "@/features/themes/theme-provider";
 import "./globals.css";
 import "./workspace.css";
 import "./visual-revision.css";
@@ -10,6 +11,7 @@ import "./final-polish.css";
 import "./final-settings.css";
 import "./life.css";
 import "./help.css";
+import "./theme-presets.css";
 
 export const metadata: Metadata = {
   title: "Zynthel",
@@ -29,7 +31,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
-      <body><AppShell>{children}</AppShell></body>
+      <body><ThemeProvider><AppShell>{children}</AppShell></ThemeProvider></body>
     </html>
   );
 }

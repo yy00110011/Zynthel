@@ -3,7 +3,7 @@ import { createDefaultWorkspace } from "./data/schema";
 import { addTodo, deleteTodo, todayTodos, toggleTodo } from "./todos/model";
 import { addProject, archiveProject, searchProjects } from "./projects/model";
 import { addTool, moveTool, searchTools } from "./tools/model";
-import { THEMES } from "./themes/registry";
+import { THEME_PRESETS } from "./themes/registry";
 
 describe("todo model", () => {
   it("adds, completes, filters, and deletes todos immutably", () => {
@@ -36,7 +36,10 @@ describe("tool model", () => {
   });
 });
 
-it("ships a single default theme", () => {
-  expect(Object.keys(THEMES)).toEqual(["default"]);
-  expect(Object.keys(THEMES.default.tokens)).toContain("base");
+it("ships built-in themes and keeps default as the default", () => {
+  expect(THEME_PRESETS.map((preset) => preset.id)).toEqual([
+    "default", "ink-blue", "rose-mist", "sakura-almond", "moon-frost", "moss-peach",
+  ]);
+  // 旧数据兼容：默认工作区仍然使用 default 主题
+  expect(createDefaultWorkspace().settings.theme).toBe("default");
 });

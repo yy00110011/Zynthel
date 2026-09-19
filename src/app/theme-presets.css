@@ -1,0 +1,87 @@
+/* ===== 内置渐变主题：一套 UI + 多套主题变量 =====
+ * 只用 CSS 变量驱动配色，不复制页面组件，不新增图片素材。
+ * 默认主题（default）在此不加任何覆盖，完全保持原有视觉效果。
+ */
+
+/* 1. 砚蓝 */
+html[data-theme="ink-blue"]{
+  --theme-bg-start:#404D62; --theme-bg-end:#DDBECA;
+  --base:#404D62;
+  --surface:rgba(41,48,62,.72); --surface-strong:rgba(48,56,72,.90);
+  --text:#F5F2F7!important; --muted:#C9C3D2!important;
+  --accent:#DDBECA!important; --accent-soft:#EFD9E1;
+  --border:rgba(221,190,202,.34); --glow:rgba(221,190,202,.20);
+}
+/* 2. 玫雾 */
+html[data-theme="rose-mist"]{
+  --theme-bg-start:#E87C8D; --theme-bg-end:#F9CB8E;
+  --base:#E87C8D;
+  --surface:rgba(255,252,250,.74); --surface-strong:rgba(255,253,251,.92);
+  --text:#4A3540!important; --muted:#7A6370!important;
+  --accent:#C4566B!important; --accent-soft:#E87C8D;
+  --border:rgba(148,86,105,.28); --glow:rgba(232,124,141,.22);
+}
+/* 3. 樱杏 */
+html[data-theme="sakura-almond"]{
+  --theme-bg-start:#946368; --theme-bg-end:#F3D6BD;
+  --base:#946368;
+  --surface:rgba(255,250,246,.74); --surface-strong:rgba(255,252,249,.92);
+  --text:#4A3238!important; --muted:#7C6169!important;
+  --accent:#946368!important; --accent-soft:#C79A91;
+  --border:rgba(148,99,104,.28); --glow:rgba(148,99,104,.20);
+}
+/* 4. 月霜 */
+html[data-theme="moon-frost"]{
+  --theme-bg-start:#B0B1CF; --theme-bg-end:#F1E2D2;
+  --base:#B0B1CF;
+  --surface:rgba(252,252,255,.74); --surface-strong:rgba(253,253,255,.92);
+  --text:#3B3F55!important; --muted:#6E7290!important;
+  --accent:#6B6E9C!important; --accent-soft:#A9AACB;
+  --border:rgba(107,110,156,.28); --glow:rgba(176,177,207,.24);
+}
+/* 5. 苔桃 */
+html[data-theme="moss-peach"]{
+  --theme-bg-start:#A66191; --theme-bg-end:#F1E9DA;
+  --base:#A66191;
+  --surface:rgba(255,251,252,.74); --surface-strong:rgba(255,253,254,.92);
+  --text:#4A2E42!important; --muted:#7C5C72!important;
+  --accent:#8E4E7C!important; --accent-soft:#C88FB0;
+  --border:rgba(166,97,145,.28); --glow:rgba(166,97,145,.20);
+}
+
+/* ===== 非默认主题的统一结构覆盖：只改色彩体系，不动布局/圆角/阴影/字体 ===== */
+html:is([data-theme="ink-blue"],[data-theme="rose-mist"],[data-theme="sakura-almond"],[data-theme="moon-frost"],[data-theme="moss-peach"]){
+  /* 主背景渐变（用户自定义背景图通过行内样式覆盖，优先级更高） */
+  body,.scene-artwork{background:linear-gradient(180deg,var(--theme-bg-start) 0%,var(--theme-bg-end) 100%)}
+  .scene-artwork:before{background:linear-gradient(90deg,color-mix(in srgb,var(--surface) 56%,transparent),transparent 62%)}
+  .scene-artwork:after{background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--base) 14%,transparent))}
+  /* 侧栏 */
+  .sidebar{background:var(--surface);border-right:1px solid var(--border)}
+  .sidebar nav a{color:var(--muted)}
+  .sidebar nav a:hover{color:var(--text)}
+  .sidebar nav a.active{background:var(--surface-strong);color:var(--text);box-shadow:inset 3px 0 var(--accent)}
+  /* 顶栏 / 命令触发 */
+  .date-time{color:var(--text);text-shadow:0 1px 8px color-mix(in srgb,var(--base) 45%,transparent)}
+  .command-trigger{background:var(--surface);color:var(--muted);border-color:var(--border)}
+  /* 首页与卡片（覆盖 final-ui 中的固定浅色） */
+  .final-home,.final-home *{color:var(--text)}
+  .glass-light{background:var(--surface);border-color:var(--border)}
+  .final-task i{border-color:var(--muted)}
+  .apps-panel i{color:var(--accent)}
+  .focus-dial{border-color:color-mix(in srgb,var(--accent) 32%,transparent);border-right-color:var(--accent)}
+  /* 输入框 / 按钮 */
+  .chat-input{background:var(--surface)}
+  .chat-input button{background:var(--accent);color:var(--surface-strong)}
+  /* 弹窗与通用面板跟随变量 */
+  .dialog-backdrop{background:color-mix(in srgb,var(--base) 55%,transparent)}
+  .confirm-dialog,.app-picker{background:var(--surface-strong);border-color:var(--border)}
+}
+
+/* ===== 设置页：主题颜色预览卡 ===== */
+.theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px}
+.theme-card{position:relative;display:grid;gap:6px;padding:0;border:1px solid rgba(120,144,162,.25);border-radius:12px;background:rgba(255,255,255,.5);cursor:pointer;overflow:hidden;text-align:left}
+.theme-card .theme-swatch{height:56px;width:100%}
+.theme-card span{display:block;padding:7px 10px;font-size:12px;color:#344e67}
+.theme-card.active{border:2px solid #4db9bc;box-shadow:0 0 0 3px rgba(77,185,188,.18)}
+.theme-card.active span{font-weight:600}
+@media(max-width:600px){.theme-grid{grid-template-columns:repeat(2,1fr)}}

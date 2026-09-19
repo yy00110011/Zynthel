@@ -20,8 +20,15 @@ import {
   aiConversationSchema,
 } from "./ai-schema";
 
-// 单一默认主题：不再提供多主题切换，theme 固定为 "default"。
-export const themeIdSchema = z.enum(["default"]);
+// 内置主题："default" 为原始默认主题（旧数据完全兼容），其余为可选渐变主题。
+export const themeIdSchema = z.enum([
+  "default",
+  "ink-blue",
+  "rose-mist",
+  "sakura-almond",
+  "moon-frost",
+  "moss-peach",
+]);
 export type ThemeId = z.infer<typeof themeIdSchema>;
 
 const timestamp = z.string();

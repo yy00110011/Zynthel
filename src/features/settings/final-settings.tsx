@@ -8,6 +8,7 @@ import { useWorkspace } from "@/features/data/use-workspace";
 import { workspaceRepository } from "@/features/data/repository";
 import { exportWorkspace, importWorkspace, buildFullBackup, parseFullBackup, downloadBlob } from "@/features/data/transfer";
 import { getAllBookFiles, putBookFiles } from "@/lib/book-storage";
+import { THEME_PRESETS } from "@/features/themes/registry";
 import type { AiModelConfig } from "@/features/data/ai-schema";
 
 export function FinalSettings() {
@@ -144,6 +145,22 @@ export function FinalSettings() {
           {data.settings.backgroundImage && (
             <div className="bg-preview" style={{ backgroundImage: `url(${data.settings.backgroundImage})` }} />
           )}
+          <label style={{ marginTop: 14 }}>主题颜色<small>选择一套配色，立即生效并自动保存；自定义背景图会覆盖主背景。</small></label>
+          <div className="theme-grid">
+            {THEME_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                className={`theme-card ${data.settings.theme === preset.id ? "active" : ""}`}
+                aria-label={`使用主题 ${preset.label}`}
+                aria-pressed={data.settings.theme === preset.id}
+                onClick={() => { patch({ theme: preset.id }); setMessage(`已切换到「${preset.label}」主题。`); }}
+              >
+                <span className="theme-swatch" style={{ background: preset.gradient }} />
+                <span>{preset.label}</span>
+              </button>
+            ))}
+          </div>
         </GlassPanel>
 
         <GlassPanel className="settings-card">
