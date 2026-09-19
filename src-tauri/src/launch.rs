@@ -84,7 +84,7 @@ pub mod android {
     let response: serde_json::Value = handle
       .run_mobile_plugin(command, payload)
       .map_err(|_| LaunchError::LaunchFailed)?;
-    let ok = response.get("ok").and_then(|value| value.as_bool()).unwrap_or(true);
+    let ok = parse_ok_field(&response)?;
     Ok(LaunchResult { ok })
   }
 
@@ -101,13 +101,24 @@ pub mod android {
       .unwrap_or(false)
   }
 
-  pub fn apps<R: Runtime>(handle: &PluginHandle<R>) -> Vec<InstalledApp> {
-    handle
+  pub fn apps<R: Runtime>(handle: &PluginHandle<R>) -> Result<Vec<InstalledApp>, LaunchError> {
+    let response: serde_json::Value = handle
       .run_mobile_plugin::<serde_json::Value>("listInstalledApps", serde_json::json!({}))
-      .ok()
-      .and_then(|value| value.get("apps").cloned())
-      .and_then(|apps| serde_json::from_value::<Vec<InstalledApp>>(apps).ok())
-      .unwrap_or_default()
+      .map_err(|_| LaunchError::LaunchFailed)?;
+    let apps = response
+      .get("apps")
+      .ok_or(LaunchError::LaunchFailed)?;
+    serde_json::from_value::<Vec<InstalledApp>>(apps.clone())
+      .map_err(|_| LaunchError::LaunchFailed)
+  }
+}
+
+/// 严格解析 Kotlin 插件响应里的 `ok` 字段：必须是布尔值，否则视为启动失败。
+/// 避免把异常响应（`{}` / `ok` 类型错）误判为成功。
+fn parse_ok_field(response: &serde_json::Value) -> Result<bool, LaunchError> {
+  match response.get("ok") {
+    Some(serde_json::Value::Bool(value)) => Ok(*value),
+    _ => Err(LaunchError::LaunchFailed),
   }
 }
 

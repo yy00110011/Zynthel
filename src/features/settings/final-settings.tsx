@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, Download, FolderOpen, Info, Keyboard, RotateCcw, ShieldCheck, Upload, Image as ImageIcon, Bot, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Database, Download, FolderOpen, Heart, Info, Keyboard, RotateCcw, ShieldCheck, Upload, Image as ImageIcon, Bot, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { useRef, useState } from "react";
 import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
 import { useWorkspace } from "@/features/data/use-workspace";
@@ -169,7 +169,7 @@ export function FinalSettings() {
         <GlassPanel className="settings-card wide about-card">
           <SectionTitle><><Info /> 关于 SOLARIS</></SectionTitle>
           <div>
-            <h2>SOLARIS <small>内测版 v0.2.0</small></h2>
+            <h2>SOLARIS <small>开源版 v0.2.0</small></h2>
             <p>本地优先个人工作台</p>
             <div className="about-section">
               <h3>所需权限</h3>
@@ -185,6 +185,20 @@ export function FinalSettings() {
             <div className="about-section">
               <h3>开源协议</h3>
               <p className="settings-copy">本项目基于 MIT 协议开源分发，可自由使用、修改与再分发。</p>
+            </div>
+            <div className="about-section">
+              <h3><Heart size={14} style={{ verticalAlign: "-2px" }} /> 支持项目</h3>
+              <p className="settings-copy">SOLARIS 完全免费、开源，不内置任何广告或付费功能。如果它帮到了你，欢迎扫码请开发者喝杯咖啡，支持项目持续维护。</p>
+              <div className="donate-grid">
+                <figure className="donate-item">
+                  <img src="/donate/wechat.svg" alt="微信收款码" />
+                  <figcaption>微信</figcaption>
+                </figure>
+                <figure className="donate-item">
+                  <img src="/donate/alipay.svg" alt="支付宝收款码" />
+                  <figcaption>支付宝</figcaption>
+                </figure>
+              </div>
             </div>
           </div>
         </GlassPanel>

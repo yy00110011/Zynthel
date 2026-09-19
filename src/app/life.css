@@ -210,6 +210,10 @@
 .about-section h3{font-size:13px;color:#344e67;margin:0 0 6px}
 .about-section ul{margin:0;padding-left:18px}
 .about-section li{font-size:12px;color:#48677d;margin:4px 0;line-height:1.6}
+.donate-grid{display:flex;gap:16px;margin-top:12px;flex-wrap:wrap}
+.donate-item{margin:0;text-align:center}
+.donate-item img{width:140px;height:auto;border-radius:10px;background:#fff;box-shadow:0 2px 10px rgba(80,130,145,.12);display:block}
+.donate-item figcaption{font-size:12px;color:#48677d;margin-top:6px}
 
 @media(max-width:900px){
   .ai-chat-layout{grid-template-columns:1fr}
