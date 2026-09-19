@@ -1,10 +1,10 @@
 # Zynthel 后端源码审查包
 
-> 生成时间：2026-09-19（品牌已从 SOLARIS 更名 Zynthel，含主题删除/背景图首页化/专注可点击后的最新代码）
+> 生成时间：2026-09-19 13:30（最新：含课程表周次/应用内阅读器/完整备份/IndexedDB 文件存储）
 
 > 用途：交给第三方 AI 做后端代码安全/稳定性审查。
 
-> 技术栈：Next.js + Tauri 2（Rust 原生层 + Kotlin Android 插件）+ Web Crypto。
+> 技术栈：Next.js + Tauri 2（Rust 原生层 + Kotlin Android 插件）+ Web Crypto + IndexedDB。
 
 > 平台定位：Android 平板（本地优先工作台）。
 
@@ -29,27 +29,29 @@
 
 9. `src-tauri/gen/android/app/src/main/AndroidManifest.xml` — Android 权限与组件清单
 
-10. `src/features/data/schema.ts` — 数据契约（workspace/settings/theme/工具/启动方式）
+10. `src/features/data/schema.ts` — 数据契约（workspace/settings/工具/启动方式）
 
-11. `src/features/data/repository.ts` — 数据仓库（localStorage + storage key 迁移）
+11. `src/features/data/life-schema.ts` — 生活工具 schema（课程含 weeks 1-20、书籍含 source/fileName、vault 加密字段）
 
-12. `src/features/data/transfer.ts` — 数据导入导出
+12. `src/features/data/repository.ts` — 数据仓库（localStorage + storage key 迁移）
 
-13. `src/features/data/crypto.ts` — 密码本加密（AES-GCM + PBKDF2 + 密码生成）
+13. `src/features/data/transfer.ts` — 数据导入导出 + 完整备份（ZIP：workspace JSON + 书籍文件，jszip）
 
-14. `src/features/data/ai-schema.ts` — AI 模型配置 schema
+14. `src/features/data/crypto.ts` — 密码本加密（AES-GCM + PBKDF2 + 密码生成）
 
-15. `src/features/ai/ai-client.ts` — AI 客户端（fetch + 60s 超时）
+15. `src/features/data/ai-schema.ts` — AI 模型配置 schema
 
-16. `src/lib/installed-apps.ts` — 应用枚举前端封装（区分空/失败）
+16. `src/features/ai/ai-client.ts` — AI 客户端（fetch + 60s 超时）
 
-17. `src/lib/desktop-launch.ts` — 启动资源前端封装
+17. `src/lib/book-storage.ts` — 【新增】书籍文件 IndexedDB 存储（blob 读写/遍历/删除）
 
-18. `src/lib/open-launch.ts` — 启动入口
+18. `src/lib/installed-apps.ts` — 应用枚举前端封装（区分空/失败）
 
-19. `src/lib/runtime.ts` — 运行时检测
+19. `src/lib/desktop-launch.ts` — 启动资源前端封装
 
-20. `src/features/data/life-schema.ts` — 生活工具 schema（含 vault 加密字段）
+20. `src/lib/open-launch.ts` — 启动入口
+
+21. `src/lib/runtime.ts` — 运行时检测
 
 
 ---
@@ -838,7 +840,7 @@ xml
 
 ## src/features/data/schema.ts
 
-> 数据契约（workspace/settings/theme/工具/启动方式）
+> 数据契约（workspace/settings/工具/启动方式）
 
 ```
 typescript
@@ -1073,6 +1075,179 @@ export function createDefaultWorkspace(
 ```
 
 
+## src/features/data/life-schema.ts
+
+> 生活工具 schema（课程含 weeks 1-20、书籍含 source/fileName、vault 加密字段）
+
+```
+typescript
+import { z } from "zod";
+
+const timestamp = z.string();
+
+/* ===== 记账本 bookkeeping ===== */
+export const ledgerAccountSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(60),
+  icon: z.string().default("wallet"),
+  createdAt: timestamp,
+});
+
+export const ledgerTransactionSchema = z.object({
+  id: z.string().min(1),
+  amount: z.number().int(), // 金额以「分」存储，避免浮点误差
+  type: z.enum(["income", "expense"]),
+  category: z.string().trim().min(1).max(40),
+  accountId: z.string().min(1),
+  date: z.string(), // YYYY-MM-DD
+  note: z.string().default(""),
+  tags: z.array(z.string().trim().min(1)).default([]),
+  createdAt: timestamp,
+});
+
+/* ===== 健身打卡 fitness ===== */
+export const workoutSchema = z.object({
+  id: z.string().min(1),
+  date: z.string(),
+  exercise: z.string().trim().min(1).max(60),
+  durationMinutes: z.number().int().positive(),
+  sets: z.number().int().min(0).default(0),
+  reps: z.number().int().min(0).default(0),
+  note: z.string().default(""),
+  createdAt: timestamp,
+});
+
+export const fitnessGoalSchema = z.object({
+  id: z.string().min(1),
+  period: z.enum(["weekly", "monthly"]),
+  targetMinutes: z.number().int().positive(),
+  targetDays: z.number().int().positive(),
+});
+
+/* ===== 日记 diary ===== */
+export const diaryEntrySchema = z.object({
+  id: z.string().min(1),
+  date: z.string(),
+  title: z.string().trim().max(120).default(""),
+  body: z.string().default(""),
+  mood: z.enum(["great", "good", "okay", "low", "bad"]),
+  weather: z.string().default(""),
+  tags: z.array(z.string().trim().min(1)).default([]),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
+
+/* ===== 课程表 schedule ===== */
+export const courseSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  room: z.string().default(""),
+  teacher: z.string().default(""),
+  weekday: z.number().int().min(1).max(7),
+  startTime: z.string(),
+  endTime: z.string(),
+  weeks: z.array(z.number().int().min(1).max(20)).default([]),
+  termId: z.string().default(""),
+  createdAt: timestamp,
+});
+
+export const termSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(60),
+  startDate: z.string(),
+  endDate: z.string(),
+});
+
+/* ===== 习惯打卡 habits ===== */
+export const habitSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(60),
+  icon: z.string().default("droplet"),
+  frequency: z.enum(["daily", "weekly", "custom"]).default("daily"),
+  remind: z.boolean().default(false),
+  createdAt: timestamp,
+});
+
+export const habitCheckSchema = z.object({
+  habitId: z.string().min(1),
+  date: z.string(),
+  done: z.boolean(),
+});
+
+/* ===== 倒数日 countdown ===== */
+export const countdownEventSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().trim().min(1).max(80),
+  targetDate: z.string(),
+  mode: z.enum(["countdown", "countup"]).default("countdown"),
+  pinned: z.boolean().default(false),
+  repeatRule: z.enum(["none", "annual"]).default("none"),
+  categoryId: z.string().default(""),
+  createdAt: timestamp,
+});
+
+export const countdownCategorySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(40),
+  icon: z.string().default("flag"),
+});
+
+/* ===== 阅读清单 readingList ===== */
+export const bookSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().trim().min(1).max(160),
+  author: z.string().trim().max(120).default(""),
+  status: z.enum(["want", "reading", "finished"]).default("want"),
+  rating: z.number().int().min(0).max(5).default(0),
+  progress: z.number().int().min(0).max(100).default(0),
+  note: z.string().default(""),
+  source: z.enum(["manual", "file"]).default("manual"),
+  fileName: z.string().max(200).default(""),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
+
+/* ===== 密码本 vault ===== */
+export const vaultMetaSchema = z.object({
+  salt: z.string(),
+  iv: z.string(),
+  // 限制合理范围，防止损坏/恶意导入的极端 iterations 导致解锁长时间卡死。
+  iterations: z.number().int().min(100_000).max(1_000_000),
+  verifier: z.string(), // 用于校验主密码是否正确
+});
+
+export const vaultEntrySchema = z.object({
+  id: z.string().min(1),
+  title: z.string().trim().min(1).max(80),
+  username: z.string().default(""),
+  passwordCipher: z.string(), // AES-GCM 加密后的 base64
+  urlCipher: z.string(),
+  noteCipher: z.string(),
+  // 每个敏感字段独立 IV（默认空字符串兼容旧数据，旧数据回退 vaultMeta.iv 解密）。
+  passwordIv: z.string().default(""),
+  urlIv: z.string().default(""),
+  noteIv: z.string().default(""),
+  category: z.string().default(""),
+  createdAt: timestamp,
+});
+
+export type LedgerAccount = z.infer<typeof ledgerAccountSchema>;
+export type LedgerTransaction = z.infer<typeof ledgerTransactionSchema>;
+export type Workout = z.infer<typeof workoutSchema>;
+export type FitnessGoal = z.infer<typeof fitnessGoalSchema>;
+export type DiaryEntry = z.infer<typeof diaryEntrySchema>;
+export type Course = z.infer<typeof courseSchema>;
+export type Term = z.infer<typeof termSchema>;
+export type Habit = z.infer<typeof habitSchema>;
+export type HabitCheck = z.infer<typeof habitCheckSchema>;
+export type CountdownEvent = z.infer<typeof countdownEventSchema>;
+export type CountdownCategory = z.infer<typeof countdownCategorySchema>;
+export type Book = z.infer<typeof bookSchema>;
+export type VaultMeta = z.infer<typeof vaultMetaSchema>;
+export type VaultEntry = z.infer<typeof vaultEntrySchema>;
+```
+
+
 ## src/features/data/repository.ts
 
 > 数据仓库（localStorage + storage key 迁移）
@@ -1153,7 +1328,7 @@ export const workspaceRepository = createWorkspaceRepository();
 
 ## src/features/data/transfer.ts
 
-> 数据导入导出
+> 数据导入导出 + 完整备份（ZIP：workspace JSON + 书籍文件，jszip）
 
 ```
 typescript
@@ -1178,6 +1353,76 @@ export function importWorkspace(value: string): ImportResult {
   return result.success
     ? { ok: true, data: result.data }
     : { ok: false, error: "unsupported-data" };
+}
+
+/* ===== 完整备份（ZIP：workspace.json + 书籍文件） ===== */
+
+export type FullBackupFile = { bookId: string; fileName: string; blob: Blob };
+
+const BACKUP_MARKER = "zynthel-full-backup";
+
+/** 打包完整备份：工作区数据 JSON + 本地书籍文件（IndexedDB blob） */
+export async function buildFullBackup(data: WorkspaceData, files: FullBackupFile[]): Promise<Blob> {
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  zip.file("backup.json", JSON.stringify({ marker: BACKUP_MARKER, exportedAt: new Date().toISOString(), workspace: workspaceSchema.parse(data) }, null, 2));
+  if (files.length) {
+    const folder = zip.folder("books")!;
+    for (const f of files) folder.file(`${f.bookId}__${f.fileName.replace(/[/\\]/g, "_")}`, f.blob);
+  }
+  return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+}
+
+export type FullBackupParseResult =
+  | { ok: true; data: WorkspaceData; files: FullBackupFile[] }
+  | { ok: false; error: "invalid-zip" | "unsupported-data" };
+
+/** 解析完整备份：返回工作区数据与书籍文件列表（供写入 IndexedDB） */
+export async function parseFullBackup(file: Blob): Promise<FullBackupParseResult> {
+  let zip: InstanceType<typeof import("jszip")>;
+  try {
+    const JSZip = (await import("jszip")).default;
+    zip = await JSZip.loadAsync(file);
+  } catch {
+    return { ok: false, error: "invalid-zip" };
+  }
+  const manifestEntry = zip.file("backup.json");
+  if (!manifestEntry) return { ok: false, error: "unsupported-data" };
+  let manifest: { marker?: string; workspace?: unknown };
+  try {
+    manifest = JSON.parse(await manifestEntry.async("string"));
+  } catch {
+    return { ok: false, error: "unsupported-data" };
+  }
+  if (manifest.marker !== BACKUP_MARKER) return { ok: false, error: "unsupported-data" };
+  const parsed = workspaceSchema.safeParse(manifest.workspace);
+  if (!parsed.success) return { ok: false, error: "unsupported-data" };
+
+  const entries: { bookId: string; fileName: string; entry: import("jszip").JSZipObject }[] = [];
+  zip.folder("books")?.forEach((relativePath: string, entry: import("jszip").JSZipObject) => {
+    if (entry.dir) return;
+    const sep = relativePath.indexOf("__");
+    const bookId = sep > 0 ? relativePath.slice(0, sep) : relativePath;
+    const fileName = sep > 0 ? relativePath.slice(sep + 2) : relativePath;
+    entries.push({ bookId, fileName, entry });
+  });
+  const files: FullBackupFile[] = [];
+  for (const { bookId, fileName, entry } of entries) {
+    files.push({ bookId, fileName, blob: await entry.async("blob") });
+  }
+  return { ok: true, data: parsed.data, files };
+}
+
+/** 触发浏览器下载备份文件（Tauri WebView 落到系统下载目录） */
+export function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4_000);
 }
 ```
 
@@ -1456,6 +1701,85 @@ export async function chatCompletion(
 ```
 
 
+## src/lib/book-storage.ts
+
+> 【新增】书籍文件 IndexedDB 存储（blob 读写/遍历/删除）
+
+```
+typescript
+// 阅读文件本地存储：IndexedDB 存 blob（localStorage 5MB 上限放不下 PDF/EPUB）。
+// 以书籍 id 为 key，选文件时写入，删除书时清理，阅读器打开时读取。
+
+const DB_NAME = "zynthel-books";
+const STORE = "files";
+const VERSION = 1;
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function openDb(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("打开本地书库失败"));
+  });
+  return dbPromise;
+}
+
+function runTx<T>(mode: IDBTransactionMode, operate: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  return openDb().then((db) => new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const request = operate(tx.objectStore(STORE));
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("本地书库读写失败"));
+  }));
+}
+
+export async function putBookFile(bookId: string, file: Blob): Promise<void> {
+  await runTx("readwrite", (store) => store.put(file, bookId));
+}
+
+export async function getBookFile(bookId: string): Promise<Blob | undefined> {
+  return runTx("readonly", (store) => store.get(bookId) as IDBRequest<Blob | undefined>);
+}
+
+export async function deleteBookFile(bookId: string): Promise<void> {
+  await runTx("readwrite", (store) => store.delete(bookId));
+}
+
+/** 读取本地书库全部文件（用于完整备份） */
+export async function getAllBookFiles(): Promise<{ bookId: string; blob: Blob }[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readonly");
+    const store = tx.objectStore(STORE);
+    const result: { bookId: string; blob: Blob }[] = [];
+    const cursorRequest = store.openCursor();
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) { resolve(result); return; }
+      result.push({ bookId: String(cursor.key), blob: cursor.value as Blob });
+      cursor.continue();
+    };
+    cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error("遍历本地书库失败"));
+  });
+}
+
+/** 判断格式是否支持应用内阅读 */
+export function supportedFileType(fileName: string): "pdf" | "epub" | "txt" | null {
+  const ext = fileName.slice(fileName.lastIndexOf(".") + 1).toLowerCase();
+  if (ext === "pdf") return "pdf";
+  if (ext === "epub") return "epub";
+  if (ext === "txt" || ext === "md") return "txt";
+  return null;
+}
+```
+
+
 ## src/lib/installed-apps.ts
 
 > 应用枚举前端封装（区分空/失败）
@@ -1570,209 +1894,40 @@ export function isTauriRuntime(): boolean {
 ```
 
 
-## src/features/data/life-schema.ts
-
-> 生活工具 schema（含 vault 加密字段）
-
-```
-typescript
-import { z } from "zod";
-
-const timestamp = z.string();
-
-/* ===== 记账本 bookkeeping ===== */
-export const ledgerAccountSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().trim().min(1).max(60),
-  icon: z.string().default("wallet"),
-  createdAt: timestamp,
-});
-
-export const ledgerTransactionSchema = z.object({
-  id: z.string().min(1),
-  amount: z.number().int(), // 金额以「分」存储，避免浮点误差
-  type: z.enum(["income", "expense"]),
-  category: z.string().trim().min(1).max(40),
-  accountId: z.string().min(1),
-  date: z.string(), // YYYY-MM-DD
-  note: z.string().default(""),
-  tags: z.array(z.string().trim().min(1)).default([]),
-  createdAt: timestamp,
-});
-
-/* ===== 健身打卡 fitness ===== */
-export const workoutSchema = z.object({
-  id: z.string().min(1),
-  date: z.string(),
-  exercise: z.string().trim().min(1).max(60),
-  durationMinutes: z.number().int().positive(),
-  sets: z.number().int().min(0).default(0),
-  reps: z.number().int().min(0).default(0),
-  note: z.string().default(""),
-  createdAt: timestamp,
-});
-
-export const fitnessGoalSchema = z.object({
-  id: z.string().min(1),
-  period: z.enum(["weekly", "monthly"]),
-  targetMinutes: z.number().int().positive(),
-  targetDays: z.number().int().positive(),
-});
-
-/* ===== 日记 diary ===== */
-export const diaryEntrySchema = z.object({
-  id: z.string().min(1),
-  date: z.string(),
-  title: z.string().trim().max(120).default(""),
-  body: z.string().default(""),
-  mood: z.enum(["great", "good", "okay", "low", "bad"]),
-  weather: z.string().default(""),
-  tags: z.array(z.string().trim().min(1)).default([]),
-  createdAt: timestamp,
-  updatedAt: timestamp,
-});
-
-/* ===== 课程表 schedule ===== */
-export const courseSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().trim().min(1).max(80),
-  room: z.string().default(""),
-  teacher: z.string().default(""),
-  weekday: z.number().int().min(1).max(7),
-  startTime: z.string(),
-  endTime: z.string(),
-  weeks: z.array(z.number().int().min(1)).default([]),
-  termId: z.string().default(""),
-  createdAt: timestamp,
-});
-
-export const termSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().trim().min(1).max(60),
-  startDate: z.string(),
-  endDate: z.string(),
-});
-
-/* ===== 习惯打卡 habits ===== */
-export const habitSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().trim().min(1).max(60),
-  icon: z.string().default("droplet"),
-  frequency: z.enum(["daily", "weekly", "custom"]).default("daily"),
-  remind: z.boolean().default(false),
-  createdAt: timestamp,
-});
-
-export const habitCheckSchema = z.object({
-  habitId: z.string().min(1),
-  date: z.string(),
-  done: z.boolean(),
-});
-
-/* ===== 倒数日 countdown ===== */
-export const countdownEventSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().trim().min(1).max(80),
-  targetDate: z.string(),
-  mode: z.enum(["countdown", "countup"]).default("countdown"),
-  pinned: z.boolean().default(false),
-  repeatRule: z.enum(["none", "annual"]).default("none"),
-  categoryId: z.string().default(""),
-  createdAt: timestamp,
-});
-
-export const countdownCategorySchema = z.object({
-  id: z.string().min(1),
-  name: z.string().trim().min(1).max(40),
-  icon: z.string().default("flag"),
-});
-
-/* ===== 阅读清单 readingList ===== */
-export const bookSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().trim().min(1).max(160),
-  author: z.string().trim().max(120).default(""),
-  status: z.enum(["want", "reading", "finished"]).default("want"),
-  rating: z.number().int().min(0).max(5).default(0),
-  progress: z.number().int().min(0).max(100).default(0),
-  note: z.string().default(""),
-  createdAt: timestamp,
-  updatedAt: timestamp,
-});
-
-/* ===== 密码本 vault ===== */
-export const vaultMetaSchema = z.object({
-  salt: z.string(),
-  iv: z.string(),
-  // 限制合理范围，防止损坏/恶意导入的极端 iterations 导致解锁长时间卡死。
-  iterations: z.number().int().min(100_000).max(1_000_000),
-  verifier: z.string(), // 用于校验主密码是否正确
-});
-
-export const vaultEntrySchema = z.object({
-  id: z.string().min(1),
-  title: z.string().trim().min(1).max(80),
-  username: z.string().default(""),
-  passwordCipher: z.string(), // AES-GCM 加密后的 base64
-  urlCipher: z.string(),
-  noteCipher: z.string(),
-  // 每个敏感字段独立 IV（默认空字符串兼容旧数据，旧数据回退 vaultMeta.iv 解密）。
-  passwordIv: z.string().default(""),
-  urlIv: z.string().default(""),
-  noteIv: z.string().default(""),
-  category: z.string().default(""),
-  createdAt: timestamp,
-});
-
-export type LedgerAccount = z.infer<typeof ledgerAccountSchema>;
-export type LedgerTransaction = z.infer<typeof ledgerTransactionSchema>;
-export type Workout = z.infer<typeof workoutSchema>;
-export type FitnessGoal = z.infer<typeof fitnessGoalSchema>;
-export type DiaryEntry = z.infer<typeof diaryEntrySchema>;
-export type Course = z.infer<typeof courseSchema>;
-export type Term = z.infer<typeof termSchema>;
-export type Habit = z.infer<typeof habitSchema>;
-export type HabitCheck = z.infer<typeof habitCheckSchema>;
-export type CountdownEvent = z.infer<typeof countdownEventSchema>;
-export type CountdownCategory = z.infer<typeof countdownCategorySchema>;
-export type Book = z.infer<typeof bookSchema>;
-export type VaultMeta = z.infer<typeof vaultMetaSchema>;
-export type VaultEntry = z.infer<typeof vaultEntrySchema>;
-```
-
 ---
 
 ## 附：审查重点与已知情况（供第三方 AI 参考）
 
+### 本轮新增/变更（重点审查对象）
+
+1. **IndexedDB 书籍文件存储**（`book-storage.ts`）：选文件即存 blob（PDF/EPUB 可能几十 MB），按 bookId 键控；删除书时清理。请审查：容量耗尽降级、隐私模式失败处理、遍历游标正确性。
+2. **完整备份/恢复**（`transfer.ts` buildFullBackup/parseFullBackup）：ZIP 结构 = `backup.json`（含 marker 校验）+ `books/<bookId>__<fileName>`。请审查：恶意 ZIP（路径穿越已被 `__` 前缀格式约束，但仍可复核）、大文件内存峰值、marker 校验绕过。
+3. **课程表周次**（`life-schema.ts` weeks 1-20 + schedule-page）：空数组语义 = 每周（兼容旧数据）；学期 startDate 推算当前周。请审查：跨年学期、时区边界。
+4. **应用内阅读器**（`book-reader.tsx`，前端但涉文件内容处理）：pdf.js blob URL 渲染、epub.js。请审查 blob URL 生命周期（revoke 时机）。
+
 ### 已完成的加固（请复核是否到位、有无遗漏/回归）
 
-1. **AES-GCM 每字段独立 IV**（`crypto.ts` + `life-schema.ts` vaultEntrySchema）：password/url/note 各用独立 `generateIv()`，解密 `entry.passwordIv || vaultMeta.iv` 回退兼容旧数据。
-2. **URL 严格校验**（`launch.rs` validate_url + `LaunchPlugin.kt` isAllowedScheme）：仅 http/https 且要求合法 host；Kotlin 侧二次校验（纵深防御）。拒绝 file/content/javascript/intent/data/ftp/obsidian。
-3. **IPC Result 错误传播**：`list_android_apps` 返回 `Result<Vec<InstalledApp>, LaunchError>`，前端 `installed-apps.ts` 区分空列表 vs 失败。
-4. **Android 应用枚举移出主线程**：`LaunchPlugin.kt` listInstalledApps 用 `CoroutineScope(SupervisorJob()+Dispatchers.IO)` + `runOnUiThread` 回主线程 resolve。
-5. **生命周期安全**：`resolveSafely`/`rejectSafely`（`!isFinishing && !isDestroyed`），`onDestroy(activity)` 里 `scope.cancel()`。
-6. **Bitmap finally recycle**：`iconToBase64` 的 `bitmap.recycle()` 在 finally 中。
-7. **repository 先写盘**：`set()` 先 `setItem` 成功再更新 cache + 通知，失败抛出。
-8. **PBKDF2 iterations 范围**：100k–1M（`life-schema.ts` vaultMetaSchema）。
-9. **密码生成 rejection sampling**：消除 modulo bias（`crypto.ts` generatePassword）。
-10. **CSP**：`tauri.conf.json` connect-src 已加 `https:`。
-11. **AI baseUrl 校验**：`ai-schema.ts` 仅 http/https。
-12. **AI 60s 超时**：`ai-client.ts` AbortController + AbortError → "请求超时"。
-13. **Storage Key 迁移**：`repository.ts` 新增 `LEGACY_STORAGE_KEY`（`solaris.workspace.open`），首次启动读旧→校验→写新（`zynthel.workspace.open`）。
+1. AES-GCM 每字段独立 IV（crypto.ts + vaultEntrySchema）。
+2. URL 严格校验（launch.rs validate_url + LaunchPlugin.kt isAllowedScheme 双层）。
+3. IPC Result 错误传播 + 前端区分空列表/失败。
+4. Android 应用枚举移出主线程（IO 协程）。
+5. 生命周期安全（resolveSafely/rejectSafely + onDestroy cancel）。
+6. repository 先写盘再更新缓存，失败抛出。
+7. PBKDF2 iterations 范围 100k-1M。
+8. 密码生成 rejection sampling。
+9. AI baseUrl 校验 + 60s 超时。
+10. Storage Key 迁移（solaris.workspace.open → zynthel.workspace.open）。
 
 ### 已知/待审点（如实标注）
 
-1. **`flag()` 用 `unwrap_or(false)`**（`launch.rs` android::flag）：查询失败与"未安装"无法区分，但该函数**前端无调用方**（`detect_applications` 对 Android 返回空 Vec），故有意保留，属 P2。
-2. **`isInstalled` 命令**（`LaunchPlugin.kt`）直接 `invoke.resolve(result)`，未用 `resolveSafely`（同步路径，无协程竞态，但可复核是否有 Activity 已销毁的边界）。
-3. **API Key 明文存储**（`ai-schema.ts` apiKey）：用户已确认接受明文存本地 localStorage（非系统 Keystore 级别），导出 JSON 备份会包含明文 key。
-4. **AI 无重试/流式**：`ai-client.ts` 仅非流式 + 单次超时，无重试、无 SSE。
-5. **desktop-launch.ts 的 fallback**：非 Tauri 环境走 `http://127.0.0.1:47135/launch`（本地启动器 server），需复核该端点的鉴权/安全。
-6. **CSP `script-src 'self'`**：未加 `'unsafe-inline'`（本项目为 Tauri 本地 WebView，无外部注入风险，但可复核 Next.js 静态导出是否有内联脚本被拦）。
-7. **QUERY_ALL_PACKAGES 权限**：仅用于 App Picker 枚举应用，会触发 Google Play 政策审核（本项目定位 sideload + GitHub 分发，已如实记录）。
+1. `flag()` 用 `unwrap_or(false)`（launch.rs）：查询失败与未安装不可区分，前端无调用方，有意保留（P2）。
+2. API Key 明文存储（ai-schema.ts）：用户已确认接受；完整备份 ZIP 会包含明文 key。
+3. 完整备份 ZIP 无加密：书籍文件与工作区数据均为明文，用户需自行保管备份文件（如需加密备份可作后续需求）。
+4. `<a download>` 下载在 Tauri Android WebView 的行为依赖 wry DownloadListener，待真机验证。
+5. desktop-launch.ts 本地启动器 fallback（http://127.0.0.1:47135）鉴权待复核（桌面端专用，Android 不触达）。
+6. QUERY_ALL_PACKAGES 权限：仅用于 App Picker，sideload 分发已记录。
 
 ### 明确不变更（任务书约定）
 
 - 不恢复 Obsidian / obsidian:// scheme、不恢复境外服务。
-- 不做 UI 重构、不新增功能、不恢复已删的 3 个主题。
-- 背景图仅作用于首页，其他页面不变。
-
+- 背景图仅作用于首页；3 个旧主题已删除不恢复。
