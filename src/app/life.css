@@ -241,3 +241,10 @@
 .schedule-course.week-off{opacity:.45}
 .schedule-course .week-off-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(245,158,11,.16);color:#b45309;font-size:9px;font-style:normal;vertical-align:1px}
 .term-week-badge{display:inline-block;margin-left:8px;padding:2px 10px;border-radius:10px;background:rgba(72,185,189,.16);color:#2f8f95;font-size:11px}
+
+/* ===== 阅读清单：本地文件添加 ===== */
+.reading-file-btn{display:flex;align-items:center;justify-content:center;gap:6px;height:42px;padding:0 14px;border:1px dashed rgba(120,144,162,.45);border-radius:10px;background:rgba(255,255,255,.5);color:#397c8d;font-size:13px;cursor:pointer}
+.reading-file-btn:hover{background:rgba(255,255,255,.8)}
+.visually-hidden-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.reading-file-tag{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 7px;border-radius:6px;background:rgba(72,185,189,.14);color:#2f8f95;font-size:9px;font-style:normal;vertical-align:1px;white-space:nowrap}
+.reading-file-name{color:#7890a2!important;font-style:italic}

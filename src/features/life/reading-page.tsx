@@ -1,12 +1,14 @@
 "use client";
 
-import { Plus, Trash2, Library, Book, Star } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Plus, Trash2, Library, Book, Star, FolderOpen, FileText } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
 import { useWorkspace } from "@/features/data/use-workspace";
 import { workspaceRepository } from "@/features/data/repository";
 
 const STATUS_LABELS: Record<string, string> = { want: "想读", reading: "在读", finished: "读完" };
+// 本地阅读文件常见格式（不强制限制，accept 仅作为选择器默认过滤提示）
+const FILE_ACCEPT = ".pdf,.epub,.mobi,.azw3,.txt,.md,.doc,.docx";
 
 export function ReadingPage() {
   const data = useWorkspace();
@@ -14,6 +16,7 @@ export function ReadingPage() {
   const [author, setAuthor] = useState("");
   const [status, setStatus] = useState<"want" | "reading" | "finished">("want");
   const [note, setNote] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const books = data.books;
 
@@ -29,10 +32,22 @@ export function ReadingPage() {
     const now = new Date().toISOString();
     workspaceRepository.update((d) => ({
       ...d,
-      books: [{ id: crypto.randomUUID(), title: t, author: author.trim(), status, rating: 0, progress: 0, note: note.trim(), createdAt: now, updatedAt: now }, ...d.books],
+      books: [{ id: crypto.randomUUID(), title: t, author: author.trim(), status, rating: 0, progress: 0, note: note.trim(), source: "manual" as const, fileName: "", createdAt: now, updatedAt: now }, ...d.books],
       updatedAt: now,
     }));
     setTitle(""); setAuthor(""); setNote("");
+  };
+
+  /** 从本地文件选择器选文件加入书单：书名 = 文件名去扩展名，记录原始文件名 */
+  const addBookFromFile = (file: File) => {
+    const dot = file.name.lastIndexOf(".");
+    const name = dot > 0 ? file.name.slice(0, dot) : file.name;
+    const now = new Date().toISOString();
+    workspaceRepository.update((d) => ({
+      ...d,
+      books: [{ id: crypto.randomUUID(), title: name.trim() || file.name, author: "", status: "want" as const, rating: 0, progress: 0, note: "", source: "file" as const, fileName: file.name.slice(0, 200), createdAt: now, updatedAt: now }, ...d.books],
+      updatedAt: now,
+    }));
   };
 
   const updateBook = (id: string, patch: Partial<typeof books[number]>) => {
@@ -67,6 +82,25 @@ export function ReadingPage() {
             <option value="finished">读完</option>
           </select>
           <button className="primary-action" onClick={addBook}><Plus /> 添加</button>
+          <button
+            className="reading-file-btn"
+            aria-label="从本地文件选择加入书单"
+            title="从本地文件选择（PDF / EPUB / TXT 等），文件名将作为书名"
+            onClick={() => fileInputRef.current?.click()}
+          ><FolderOpen /> 本地文件</button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={FILE_ACCEPT}
+            aria-hidden="true"
+            tabIndex={-1}
+            className="visually-hidden-input"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) addBookFromFile(file);
+              e.target.value = "";
+            }}
+          />
         </div>
       </GlassPanel>
 
@@ -80,8 +114,9 @@ export function ReadingPage() {
               <div key={b.id} className="reading-item">
                 <span className="reading-cover"><Book /></span>
                 <div className="reading-main">
-                  <strong>{b.title}</strong>
+                  <strong>{b.title}{b.source === "file" && <em className="reading-file-tag"><FileText size={10} /> 本地文件</em>}</strong>
                   {b.author && <small>{b.author}</small>}
+                  {b.source === "file" && b.fileName && <small className="reading-file-name">{b.fileName}</small>}
                   <div className="reading-progress-row">
                     <span className={`reading-status status-${b.status}`}>{STATUS_LABELS[b.status]}</span>
                     {b.status === "reading" && (

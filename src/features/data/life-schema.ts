@@ -118,6 +118,8 @@ export const bookSchema = z.object({
   rating: z.number().int().min(0).max(5).default(0),
   progress: z.number().int().min(0).max(100).default(0),
   note: z.string().default(""),
+  source: z.enum(["manual", "file"]).default("manual"),
+  fileName: z.string().max(200).default(""),
   createdAt: timestamp,
   updatedAt: timestamp,
 });
