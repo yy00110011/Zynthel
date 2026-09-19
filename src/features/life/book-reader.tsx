@@ -167,6 +167,7 @@ export function BookReader({ target, onClose }: { target: ReaderTarget; onClose:
 
   // 键盘翻页 + 触摸滑动翻页
   const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight") goNext();
@@ -177,9 +178,15 @@ export function BookReader({ target, onClose }: { target: ReaderTarget; onClose:
     return () => window.removeEventListener("keydown", onKey);
   }, [goNext, goPrev, onClose]);
 
-  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
   const onTouchEnd = (e: React.TouchEvent) => {
     const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    // 纵向为主的手势（上下滑动看完整页）不算翻页，避免滚动时误触发翻页
+    if (Math.abs(dy) >= Math.abs(dx)) return;
     if (dx < -50) goNext();
     if (dx > 50) goPrev();
   };
@@ -239,6 +246,11 @@ function PdfEngine({ data, page, onPageCount, onPageResolved, onError }: {
   onError: (msg: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // 容器尺寸变化（横竖屏切换/窗口缩放）后需要按新宽度重新渲染一次
+  const [renderTick, setRenderTick] = useState(0);
+  // 上一次渲染的页码：仅在翻页时把滚动位置归零，避免重渲染打断当前阅读位置
+  const lastPageRef = useRef(0);
   // PDF document proxy（numPages/getPage）
   const pdfRef = useRef<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => { promise: Promise<unknown>; cancel: () => void } }> } | null>(null);
   // loading task（destroy 释放 worker + 文档）
@@ -290,6 +302,22 @@ function PdfEngine({ data, page, onPageCount, onPageResolved, onError }: {
     };
   }, [data, onPageCount, onPageResolved, onError]);
 
+  // 容器宽度变化 → 重新适配渲染（横竖屏切换时页面不再被裁/留黑边）
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let timer = 0;
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setRenderTick((v) => v + 1), 120);
+    });
+    ro.observe(el);
+    return () => {
+      window.clearTimeout(timer);
+      ro.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     const doc = pdfRef.current;
     const canvas = canvasRef.current;
@@ -297,16 +325,35 @@ function PdfEngine({ data, page, onPageCount, onPageResolved, onError }: {
     // 渲染时同样夹到合法范围，保证父层页码还没同步过来时也能画出第一页
     const safePage = Math.min(Math.max(page, 1), doc.numPages);
     let cancelled = false;
+    // 翻页时回到页顶；同页重渲染（如旋转屏幕）保留当前滚动位置
+    if (safePage !== lastPageRef.current && bodyRef.current) bodyRef.current.scrollTop = 0;
+    lastPageRef.current = safePage;
     (async () => {
       try {
         const pdfPage = await doc.getPage(safePage);
         if (cancelled) return;
         const container = canvas.parentElement;
-        const fit = Math.min(1.6, Math.max(0.5, (container?.clientWidth ?? 600) / pdfPage.getViewport({ scale: 1 }).width));
-        const viewport = pdfPage.getViewport({ scale: fit * window.devicePixelRatio });
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.style.width = `${Math.round(viewport.width / window.devicePixelRatio)}px`;
+        const base = pdfPage.getViewport({ scale: 1 });
+        // 左右各留 12px 呼吸位，避免贴边
+        const availWidth = Math.max(160, (container?.clientWidth ?? 600) - 24);
+        // 按宽度铺满；窄页面最多放大 2 倍，防止小 PDF 被拉得过大
+        const cssScale = Math.min(2, availWidth / base.width);
+        // 渲染倍率封顶 2（DPR 3 的设备上 canvas 像素会翻 9 倍，Android WebView 容易 OOM/白屏）
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        let devScale = cssScale * dpr;
+        // 单张 canvas 像素上限保护：超过则整体降倍率（宽高同比，绝不变形）
+        const maxPixels = 16_000_000;
+        const need = base.width * base.height * devScale * devScale;
+        if (need > maxPixels) devScale = Math.sqrt(maxPixels / (base.width * base.height));
+        const viewport = pdfPage.getViewport({ scale: devScale });
+        canvas.width = Math.max(1, Math.floor(viewport.width));
+        canvas.height = Math.max(1, Math.floor(viewport.height));
+        // 关键：宽高都写 CSS 尺寸。之前只写 width，高度回落到设备像素高度（DPR 倍），
+        // 再被 max-height 压回容器 → 页面纵向被压缩、下半部分看不到。
+        const cssW = (base.width * devScale) / dpr;
+        const cssH = (base.height * devScale) / dpr;
+        canvas.style.width = `${Math.round(cssW)}px`;
+        canvas.style.height = `${Math.round(cssH)}px`;
         const ctx = canvas.getContext("2d");
         if (!ctx || cancelled) return;
         const renderTask = pdfPage.render({ canvasContext: ctx, viewport });
@@ -326,9 +373,9 @@ function PdfEngine({ data, page, onPageCount, onPageResolved, onError }: {
         try { task.cancel(); } catch { /* 忽略 cancel 异常 */ }
       }
     };
-  }, [page, data, docReady]);
+  }, [page, data, docReady, renderTick]);
 
-  return <div className="book-reader-body pdf-body"><canvas ref={canvasRef} /></div>;
+  return <div ref={bodyRef} className="book-reader-body pdf-body"><canvas ref={canvasRef} /></div>;
 }
 
 /* ===== EPUB 引擎：epub.js paginated 左右翻页 ===== */

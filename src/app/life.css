@@ -257,7 +257,10 @@
 .book-reader-head button{border:0;background:transparent;color:#9fc3c8;cursor:pointer;padding:4px}
 .book-reader-status{display:flex;align-items:center;justify-content:center;gap:8px;color:#9fc3c8;font-size:14px}
 .book-reader-body{overflow:hidden;display:grid;place-items:center;min-height:0}
-.pdf-body canvas{max-width:100%;max-height:100%;border-radius:4px;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+/* PDF：按容器宽度适配，纵向自然高度 + 可上下滚动（不再用 grid 居中，否则超高内容会被裁掉且滚不到）。
+   -webkit-overflow-scrolling 让 Android WebView 有惯性滚动；overscroll-behavior 防止滚动穿透到外层。 */
+.pdf-body{display:block;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:14px 0 28px}
+.pdf-body canvas{display:block;margin:0 auto;max-width:100%;height:auto;border-radius:4px;box-shadow:0 8px 40px rgba(0,0,0,.5)}
 .epub-body{width:100%;height:100%}
 .txt-body{overflow:hidden;width:100%;height:100%;padding:28px clamp(20px,6vw,80px)}
 .txt-body pre{margin:0;width:100%;height:100%;white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:clamp(14px,2.2vw,19px);line-height:1.9;color:#dcecec;overflow:hidden}
