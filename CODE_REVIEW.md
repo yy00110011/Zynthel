@@ -83,10 +83,17 @@ src/features/ai/                    # AI 能力
 
 1. **【已修复】** `lib.rs` 插件注册包名旧值 `com.solaris.personal_terminal` → 已改为 `com.solaris.opensource`
 2. **【已修复】** 重新 `tauri android init` 导致手写 `LaunchPlugin.kt` 丢失 → 已补回
-3. **【待审查】** `crypto.ts` 的 `generatePassword` 用 `% pool.length` 存在模偏差（当 `length` 不是 pool 大小的约数时，前面字符出现概率略高）
-4. **【待审查】** `ai-client.ts` 直连用户配置的 URL，无请求超时、无重试、无流式支持
-5. **【待审查】** `Cargo.toml` 的 `license = ""` 和 `repository = ""` 为空（开源发布前应补 MIT 和仓库地址）
-6. **【待审查】** `repository.ts` 的 `set()` 用 `workspaceSchema.parse`（会 throw），若前端传入非法数据会抛异常而非降级
+3. **【已修复】** `Cargo.toml` 的 `license` / `repository` 已补 `MIT` + 占位仓库地址
+4. **【待审查·重要】** 原生层（`launch.rs` + `LaunchPlugin.kt`）停留在 **v3**，缺以下六项加固（历史审计记录里的 v4/v5 加固代码未落在当前仓库，全盘搜索已确认）：
+   - `call()` 用 `unwrap_or(true)`，异常响应会被误判为成功
+   - `validate_url` 用字符串前缀判断，未用 `Url::parse` 严格校验
+   - `list_android_apps` 返回裸 `Vec`，错误被吞成 `[]`
+   - `LaunchPlugin.openUrl` 无 `ALLOWED_SCHEMES` scheme 白名单
+   - `listInstalledApps` 跑主线程，有 ANR 风险
+   - `iconToBase64` 的 `bitmap.recycle()` 不在 `finally` 里
+5. **【待审查】** `crypto.ts` 的 `generatePassword` 用 `% pool.length` 存在模偏差
+6. **【待审查】** `ai-client.ts` 直连用户配置的 URL，无请求超时、无重试、无流式支持
+7. **【待审查】** `repository.ts` 的 `set()` 用 `workspaceSchema.parse`（会 throw），若前端传入非法数据会抛异常而非降级
 
 ## 四、安全要点总结
 
