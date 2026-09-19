@@ -1,6 +1,6 @@
 import { createDefaultWorkspace, type WorkspaceData, workspaceSchema } from "./schema";
 
-export const STORAGE_KEY = "solaris.workspace.v2";
+export const STORAGE_KEY = "solaris.workspace.open";
 
 export interface WorkspaceRepository {
   get(): WorkspaceData;

@@ -57,14 +57,14 @@ describe("workspace repository", () => {
     expect(before.settings.theme).toBe("peach-bloom");
     expect(repository.get().settings.theme).toBe("ember");
     expect(notifications).toBe(1);
-    expect(JSON.parse(storage.getItem("solaris.workspace.v2") ?? "{}").settings.theme).toBe("ember");
+    expect(JSON.parse(storage.getItem("solaris.workspace.open") ?? "{}").settings.theme).toBe("ember");
   });
 
   it("keeps corrupted payloads intact while returning safe defaults", () => {
-    storage.setItem("solaris.workspace.v2", "{not valid json");
+    storage.setItem("solaris.workspace.open", "{not valid json");
     const repository = createWorkspaceRepository(storage);
     expect(repository.get().version).toBe(2);
-    expect(storage.getItem("solaris.workspace.v2")).toBe("{not valid json");
+    expect(storage.getItem("solaris.workspace.open")).toBe("{not valid json");
   });
 });
 

@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "SOLARIS",
+  "productName": "SOLARIS Open",
   "version": "0.1.0",
-  "identifier": "com.solaris.personal-terminal",
+  "identifier": "com.solaris.opensource",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://127.0.0.1:3000",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "SOLARIS",
+        "title": "SOLARIS Open",
         "width": 1440,
         "height": 900,
         "minWidth": 900,

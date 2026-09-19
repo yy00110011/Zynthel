@@ -69,7 +69,7 @@ pnpm build
 
 ## 本地数据
 
-工作区数据存储在 WebView/localStorage 的 `solaris.workspace.v2` 中。通过「设置 → 数据」导出 JSON 备份，导入时通过完整校验后替换当前数据。
+工作区数据存储在 WebView/localStorage 的 `solaris.workspace.open` 中。通过「设置 → 数据」导出 JSON 备份，导入时通过完整校验后替换当前数据。
 
 ## 权限说明
 
