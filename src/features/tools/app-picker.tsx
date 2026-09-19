@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, Search, Smartphone, X } from "lucide-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { addTool } from "./model";
@@ -14,6 +15,9 @@ export function AppPicker({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
+  // Portal 到 body：玻璃面板的 backdrop-filter 会把 fixed 弹层退化成局部定位
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     let active = true;
@@ -49,7 +53,9 @@ export function AppPicker({ onClose }: { onClose: () => void }) {
     onClose();
   };
 
-  return <div className="dialog-backdrop" onMouseDown={onClose}>
+  if (!mounted) return null;
+
+  return createPortal(<div className="dialog-backdrop" onMouseDown={onClose}>
     <GlassPanel className="confirm-dialog app-picker" onMouseDown={(event) => event.stopPropagation()}>
       <header className="app-picker-head">
         <h2>本机应用</h2>
@@ -82,5 +88,5 @@ export function AppPicker({ onClose }: { onClose: () => void }) {
         </button>)}
       </div>
     </GlassPanel>
-  </div>;
+  </div>, document.body);
 }

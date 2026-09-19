@@ -1,10 +1,12 @@
 "use client";
 
-import { Plus, Trash2, Library, Book, Star, FolderOpen, FileText } from "lucide-react";
+import { Plus, Trash2, Library, Book, Star, FolderOpen, FileText, BookOpen } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
 import { useWorkspace } from "@/features/data/use-workspace";
 import { workspaceRepository } from "@/features/data/repository";
+import { deleteBookFile, putBookFile, supportedFileType } from "@/lib/book-storage";
+import { BookReader, type ReaderTarget } from "./book-reader";
 
 const STATUS_LABELS: Record<string, string> = { want: "想读", reading: "在读", finished: "读完" };
 // 本地阅读文件常见格式（不强制限制，accept 仅作为选择器默认过滤提示）
@@ -38,17 +40,25 @@ export function ReadingPage() {
     setTitle(""); setAuthor(""); setNote("");
   };
 
-  /** 从本地文件选择器选文件加入书单：书名 = 文件名去扩展名，记录原始文件名 */
-  const addBookFromFile = (file: File) => {
+  /** 从本地文件选择器选文件加入书单：书名 = 文件名去扩展名，记录原始文件名，内容存 IndexedDB 供应用内阅读 */
+  const addBookFromFile = async (file: File) => {
     const dot = file.name.lastIndexOf(".");
     const name = dot > 0 ? file.name.slice(0, dot) : file.name;
+    const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    try {
+      await putBookFile(id, file);
+    } catch {
+      // 存储失败（如隐私模式/容量不足）时降级为仅记录文件名
+    }
     workspaceRepository.update((d) => ({
       ...d,
-      books: [{ id: crypto.randomUUID(), title: name.trim() || file.name, author: "", status: "want" as const, rating: 0, progress: 0, note: "", source: "file" as const, fileName: file.name.slice(0, 200), createdAt: now, updatedAt: now }, ...d.books],
+      books: [{ id, title: name.trim() || file.name, author: "", status: "want" as const, rating: 0, progress: 0, note: "", source: "file" as const, fileName: file.name.slice(0, 200), createdAt: now, updatedAt: now }, ...d.books],
       updatedAt: now,
     }));
   };
+
+  const [readerTarget, setReaderTarget] = useState<ReaderTarget | null>(null);
 
   const updateBook = (id: string, patch: Partial<typeof books[number]>) => {
     workspaceRepository.update((d) => ({
@@ -58,6 +68,7 @@ export function ReadingPage() {
   };
 
   const removeBook = (id: string) => {
+    void deleteBookFile(id).catch(() => undefined);
     workspaceRepository.update((d) => ({ ...d, books: d.books.filter((b) => b.id !== id) }));
   };
 
@@ -136,6 +147,11 @@ export function ReadingPage() {
                   {b.note && <p className="reading-note">{b.note}</p>}
                 </div>
                 <div className="reading-actions">
+                  {b.source === "file" && supportedFileType(b.fileName) && (
+                    <button aria-label="开始阅读" className="reading-read-btn" onClick={() => setReaderTarget({ bookId: b.id, title: b.title, fileName: b.fileName })}>
+                      <BookOpen /> 阅读
+                    </button>
+                  )}
                   <button aria-label="标记在读" onClick={() => updateBook(b.id, { status: b.status === "reading" ? "finished" : "reading" })}>
                     {b.status === "reading" ? "标记读完" : "开始阅读"}
                   </button>
@@ -146,6 +162,8 @@ export function ReadingPage() {
           </div>
         )}
       </GlassPanel>
+
+      {readerTarget && <BookReader target={readerTarget} onClose={() => setReaderTarget(null)} />}
     </div>
   );
 }

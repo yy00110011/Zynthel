@@ -248,3 +248,21 @@
 .visually-hidden-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .reading-file-tag{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 7px;border-radius:6px;background:rgba(72,185,189,.14);color:#2f8f95;font-size:9px;font-style:normal;vertical-align:1px;white-space:nowrap}
 .reading-file-name{color:#7890a2!important;font-style:italic}
+
+/* ===== 应用内阅读器（PDF/EPUB/TXT） ===== */
+.book-reader-backdrop{position:fixed;z-index:200;inset:0;background:#0e1a20;color:#e8f2f2;display:grid;grid-template-rows:auto 1fr auto;user-select:none}
+.book-reader-head{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.08)}
+.book-reader-head strong{flex:1;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.book-reader-progress{font-size:12px;color:#9fc3c8;font-variant-numeric:tabular-nums}
+.book-reader-head button{border:0;background:transparent;color:#9fc3c8;cursor:pointer;padding:4px}
+.book-reader-status{display:flex;align-items:center;justify-content:center;gap:8px;color:#9fc3c8;font-size:14px}
+.book-reader-body{overflow:hidden;display:grid;place-items:center;min-height:0}
+.pdf-body canvas{max-width:100%;max-height:100%;border-radius:4px;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.epub-body{width:100%;height:100%}
+.txt-body{overflow:hidden;width:100%;height:100%;padding:28px clamp(20px,6vw,80px)}
+.txt-body pre{margin:0;width:100%;height:100%;white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:clamp(14px,2.2vw,19px);line-height:1.9;color:#dcecec;overflow:hidden}
+.book-reader-nav{display:flex;align-items:center;justify-content:center;gap:18px;padding:12px;background:rgba(255,255,255,.06);border-top:1px solid rgba(255,255,255,.08)}
+.book-reader-nav button{display:flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.08);color:#e8f2f2;font-size:13px;padding:8px 18px;cursor:pointer}
+.book-reader-nav button:disabled{opacity:.35;cursor:default}
+.book-reader-nav span{min-width:70px;text-align:center;font-size:12px;color:#9fc3c8;font-variant-numeric:tabular-nums}
+.reading-read-btn{color:#2f8f95!important;border-color:rgba(47,143,149,.4)!important}

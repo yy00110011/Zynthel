@@ -1,18 +1,21 @@
 "use client";
 
-import { Database, Download, FolderOpen, Info, Keyboard, RotateCcw, ShieldCheck, Upload, Image as ImageIcon, Bot, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Database, Download, FolderOpen, HardDriveDownload, HardDriveUpload, Info, Keyboard, RotateCcw, ShieldCheck, Upload, Image as ImageIcon, Bot, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { useRef, useState } from "react";
 import { GlassPanel, SectionTitle } from "@/components/ui/glass-panel";
 import { useWorkspace } from "@/features/data/use-workspace";
 import { workspaceRepository } from "@/features/data/repository";
-import { exportWorkspace, importWorkspace } from "@/features/data/transfer";
+import { exportWorkspace, importWorkspace, buildFullBackup, parseFullBackup, downloadBlob } from "@/features/data/transfer";
+import { getAllBookFiles, putBookFile } from "@/lib/book-storage";
 import type { AiModelConfig } from "@/features/data/ai-schema";
 
 export function FinalSettings() {
   const data = useWorkspace();
   const file = useRef<HTMLInputElement>(null);
   const bgFile = useRef<HTMLInputElement>(null);
+  const fullFile = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
 
   // AI 模型配置表单
   const [modelName, setModelName] = useState("");
@@ -39,6 +42,40 @@ export function FinalSettings() {
     const result = importWorkspace(await selected.text());
     if (result.ok) { workspaceRepository.set(result.data); setMessage("数据已成功导入。"); }
     else setMessage("导入失败：文件格式无效或版本不受支持。");
+  };
+
+  // 完整备份：工作区数据 + 阅读清单书籍文件（IndexedDB）打包成 ZIP
+  const downloadFull = async () => {
+    setBusy(true);
+    try {
+      const files = await getAllBookFiles();
+      const bookById = new Map(data.books.map((b) => [b.id, b.fileName]));
+      const blob = await buildFullBackup(data, files.map((f) => ({ ...f, fileName: bookById.get(f.bookId) ?? f.bookId })));
+      downloadBlob(blob, `zynthel-full-backup-${new Date().toISOString().slice(0, 10)}.zip`);
+      setMessage(`完整备份已导出（含 ${files.length} 个书籍文件）。`);
+    } catch {
+      setMessage("完整备份导出失败，请重试。");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadFull = async (selected?: File) => {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      const result = await parseFullBackup(selected);
+      if (!result.ok) { setMessage("恢复失败：不是有效的完整备份文件。"); return; }
+      workspaceRepository.set(result.data);
+      for (const f of result.files) {
+        try { await putBookFile(f.bookId, f.blob); } catch { /* 单个文件恢复失败不阻断整体 */ }
+      }
+      setMessage(`完整备份已恢复（含 ${result.files.length} 个书籍文件）。`);
+    } catch {
+      setMessage("恢复失败：文件读取错误。");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const addModel = () => {
@@ -149,10 +186,13 @@ export function FinalSettings() {
 
         <GlassPanel className="settings-card">
           <SectionTitle><><Database /> 数据管理</></SectionTitle>
-          <p className="settings-copy">备份包含任务、项目、日历、笔记、工具、生活工具数据和本地设置。</p>
+          <p className="settings-copy">完整备份包含任务、项目、日历、笔记、工具、生活工具数据、本地设置和阅读清单的书籍文件，打包为一个 ZIP 文件。云盘同步需要外部服务凭据，当前版本提供本地完整备份，备份文件可手动上传到任意网盘。</p>
           <div className="data-actions">
-            <button onClick={download}><Download /> 导出数据</button>
-            <button onClick={() => file.current?.click()}><Upload /> 导入数据</button>
+            <button onClick={() => void downloadFull()} disabled={busy}><HardDriveDownload /> 完整备份</button>
+            <button onClick={() => fullFile.current?.click()} disabled={busy}><HardDriveUpload /> 恢复完整备份</button>
+            <input ref={fullFile} hidden type="file" accept=".zip,application/zip" onChange={(e) => { void loadFull(e.target.files?.[0]); e.target.value = ""; }} />
+            <button onClick={download}><Download /> 导出数据 (JSON)</button>
+            <button onClick={() => file.current?.click()}><Upload /> 导入数据 (JSON)</button>
             <input ref={file} hidden type="file" accept="application/json" onChange={(e) => void load(e.target.files?.[0])} />
             <button className="danger" onClick={() => window.confirm("确定恢复默认数据？当前内容将被替换。") && workspaceRepository.reset()}><RotateCcw /> 恢复默认</button>
           </div>

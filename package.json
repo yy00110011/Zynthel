@@ -19,9 +19,12 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
+    "epubjs": "^0.3.93",
     "framer-motion": "latest",
+    "jszip": "^3.10.2",
     "lucide-react": "latest",
     "next": "latest",
+    "pdfjs-dist": "^6.3.289",
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest"
