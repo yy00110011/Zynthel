@@ -63,7 +63,7 @@ export const courseSchema = z.object({
   weekday: z.number().int().min(1).max(7),
   startTime: z.string(),
   endTime: z.string(),
-  weeks: z.array(z.number().int().min(1)).default([]),
+  weeks: z.array(z.number().int().min(1).max(20)).default([]),
   termId: z.string().default(""),
   createdAt: timestamp,
 });

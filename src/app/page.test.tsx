@@ -1,6 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import HomePage from "./page";
+
+// FinalDashboard 用 useRouter 做小组件跳转；单测无路由上下文，mock 掉
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
+  usePathname: () => "/",
+}));
 
 it("renders the Zynthel final home greeting", () => {
   render(<HomePage />);

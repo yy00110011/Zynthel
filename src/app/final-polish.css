@@ -35,11 +35,12 @@
 @media (prefers-reduced-motion:reduce){.sidebar-mood .mood-wave i{animation:none}}
 @media (min-width:1024px) and (orientation:landscape) and (hover:none) and (pointer:coarse){
   .app-frame{--sidebar:216px!important;height:100vh;overflow:hidden}
-  .final-home{width:auto;max-width:calc(100vw - 244px);height:calc(100vh - 102px);grid-template-columns:1fr 1fr .82fr;grid-template-rows:minmax(150px,1fr) minmax(160px,1fr) minmax(210px,1.35fr) minmax(210px,1.35fr)}
+  .final-home{width:auto;max-width:calc(100vw - 244px);height:calc(100vh - 118px);grid-template-columns:1fr 1fr .82fr;grid-template-rows:minmax(150px,auto) minmax(180px,1fr) minmax(220px,1.2fr)}
   .final-home>section{min-height:0;overflow:hidden}
   .final-home h1{font-size:29px}
   .apps-panel>div{grid-template-columns:repeat(3,1fr);gap:12px}
   .apps-panel .app-tile{width:52px;height:52px}
+  .focus-panel{grid-column:3;grid-row:1/4}
   .command-trigger{width:420px}
   .brand-mark strong{font-size:20px}
   .sidebar nav a{font-size:14px}
@@ -52,7 +53,7 @@
 .app-picker-head button{border:0;background:transparent;color:#7890a2}
 .app-picker-search{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.8)}
 .app-picker-search input{flex:1;border:0;background:transparent;outline:0;color:#344e67}
-.app-picker-list{overflow-y:auto;display:grid;gap:6px;padding-right:4px;-webkit-overflow-scrolling:touch}
+.app-picker-list{overflow-y:auto;min-height:0;overscroll-behavior:contain;display:grid;gap:6px;padding-right:4px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
 .app-picker-item{display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:12px;padding:8px 10px;border:0;border-radius:12px;background:transparent;color:inherit;text-align:left}
 .app-picker-item:hover{background:rgba(255,255,255,.55)}
 .app-picker-item:disabled{opacity:.45}
@@ -78,3 +79,5 @@
   .nav-group-label{font-size:10px}
 }
 
+/* 首页小组件整体可点击跳转 */
+.final-home .clickable-card{cursor:pointer}
