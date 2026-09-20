@@ -10,10 +10,7 @@ import { toggleTodo } from "@/features/todos/model";
 import { recentProjects } from "@/features/projects/model";
 import { AppPicker } from "@/features/tools/app-picker";
 import { openLaunch } from "@/lib/open-launch";
-import { BUILTIN_SHORTCUTS, type BuiltinShortcut } from "@/features/tools/builtin-shortcuts";
-import { findLocalApp, type LocalAppMatch } from "@/lib/installed-apps";
 import { detectPlatform, type LaunchMethod } from "@/features/data/schema";
-import { isWindowsDesktop } from "@/lib/runtime";
 
 type ToolVisual = { Icon: typeof Terminal; color: string };
 
@@ -66,68 +63,7 @@ export function FinalDashboard(){
       <span>添加</span>
     </button>}</div>{!data.tools.length&&<p className="apps-empty">还没有应用，点「添加」从本机里挑一个吧。</p>}</section>
     <Link href="/focus" className="focus-panel glass-light"><header><Timer/><h2>专注</h2></header><div className="focus-dial"><strong>25:00</strong><span>专注时间</span><button type="button" tabIndex={-1}><Play/></button></div></Link>
-    <FavApps />
     {picker&&<AppPicker onClose={()=>setPicker(false)}/>}
   </div>
   </>);
-}
-
-// 首页「常用应用」：三个第三方快捷入口（虎扑 / 汽水音乐 / 豆包）。
-// 这三个入口是 Windows 桌面端专属功能：仅在 Windows 上展示，点击「本地优先」——
-// 先在本机已安装应用里找客户端，找到就用它打开；没装客户端才回落到官方 HTTPS 网页。
-// Android / macOS 上不展示该区域（不打包、不下载任何第三方客户端）。
-function FavApps() {
-  const [localApps,setLocalApps]=useState<Record<string,LocalAppMatch|null>>({});
-  const [probed,setProbed]=useState(false);
-  useEffect(()=>{
-    // Windows 专属：非 Windows 直接不探测、不渲染。
-    if(!isWindowsDesktop()){return;}
-    let alive=true;
-    void (async()=>{
-      const found:Record<string,LocalAppMatch|null>={};
-      for(const shortcut of BUILTIN_SHORTCUTS){
-        found[shortcut.id]=await findLocalApp(shortcut.appKeywords);
-      }
-      if(alive){setLocalApps(found);setProbed(true);}
-    })();
-    return ()=>{alive=false;};
-  },[]);
-
-  const open=(shortcut:BuiltinShortcut)=>{
-    const local=localApps[shortcut.id];
-    // 本机有客户端 → 走「后端确认应用」专用通道（local-app）；否则打开官方网页。
-    // 不能用 local-path：普通本地路径通道在 Windows 上已拒绝 exe/lnk/url 等可启动文件。
-    return void openLaunch(local?{type:"local-app",path:local.path}:{type:"website",url:shortcut.url});
-  };
-
-  // 非 Windows 桌面端不渲染这三个快捷入口。
-  if(!isWindowsDesktop()){return null;}
-
-  return (
-    <section className="fav-apps glass-light" aria-label="常用应用">
-      <header>
-        <h2>常用应用</h2>
-        <span className="fav-apps-tag">优先本地应用 · 未安装则开网页</span>
-      </header>
-      <div className="fav-apps-row">
-        {BUILTIN_SHORTCUTS.map((shortcut)=>{
-          const local=localApps[shortcut.id];
-          const source=local?"本地应用":(probed?"网页":"检测中");
-          return (
-            <button
-              key={shortcut.id}
-              type="button"
-              className={`fav-app-card${local?" has-local":""}`}
-              onClick={()=>open(shortcut)}
-              title={local?`用本机客户端打开：${local.name}`:`在浏览器中打开 ${shortcut.url}`}
-            >
-              <i className="fav-app-icon"><shortcut.Icon size={20}/></i>
-              <span className="fav-app-name">{shortcut.name}</span>
-              <em className="fav-app-source">{source}</em>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
 }

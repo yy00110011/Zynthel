@@ -9,7 +9,6 @@ import "./final-ui.css";
 import "./final-layout-fix.css";
 import "./final-polish.css";
 import "./final-settings.css";
-import "./fav-apps.css";
 import "./drift-wall.css";
 import "./life.css";
 import "./help.css";
