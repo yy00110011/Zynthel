@@ -1,0 +1,31 @@
+name: License Check
+
+# 第三方许可证合规闸门：Rust 依赖全量核验（cargo deny）。
+# 只在宽松许可证白名单内的 crate 允许通过；出现 GPL/AGPL/LGPL 等 copyleft 会直接失败。
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  licenses:
+    name: cargo deny (licenses)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Check licenses
+        working-directory: src-tauri
+        run: cargo deny check licenses
