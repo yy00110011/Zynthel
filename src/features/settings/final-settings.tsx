@@ -8,6 +8,7 @@ import { useWorkspace } from "@/features/data/use-workspace";
 import { workspaceRepository } from "@/features/data/repository";
 import { exportWorkspace, importWorkspace, buildFullBackup, parseFullBackup, downloadBlob } from "@/features/data/transfer";
 import { getAllBookFiles, putBookFiles } from "@/lib/book-storage";
+import { getAllDriftWallImages, putDriftWallImages } from "@/lib/drift-wall-storage";
 import { THEME_PRESETS } from "@/features/themes/registry";
 import type { AiModelConfig } from "@/features/data/ai-schema";
 
@@ -52,9 +53,14 @@ export function FinalSettings() {
     try {
       const files = await getAllBookFiles();
       const bookById = new Map(data.books.map((b) => [b.id, b.fileName]));
-      const blob = await buildFullBackup(data, files.map((f) => ({ ...f, fileName: bookById.get(f.bookId) ?? f.bookId })));
+      const wallFiles = await getAllDriftWallImages();
+      const blob = await buildFullBackup(
+        data,
+        files.map((f) => ({ ...f, fileName: bookById.get(f.bookId) ?? f.bookId })),
+        wallFiles,
+      );
       downloadBlob(blob, `zynthel-full-backup-${new Date().toISOString().slice(0, 10)}.zip`);
-      setMessage(`完整备份已导出（含 ${files.length} 个书籍文件）。`);
+      setMessage(`完整备份已导出（含 ${files.length} 个书籍文件、${wallFiles.length} 张浮光墙图片）。`);
     } catch {
       setMessage("完整备份导出失败，请重试。");
     } finally {
@@ -79,10 +85,11 @@ export function FinalSettings() {
         setMessage(messages[result.error]);
         return;
       }
-      // 保证数据一致性：先写书籍文件（全部成功）→ 最后写 workspace；失败回滚已写文件，不覆盖旧 workspace
+      // 保证数据一致性：先写书籍文件与浮光墙图片（全部成功）→ 最后写 workspace；失败回滚已写文件，不覆盖旧 workspace
       await putBookFiles(result.files.map((f) => ({ bookId: f.bookId, blob: f.blob })));
+      await putDriftWallImages(result.driftWallFiles.map((f) => ({ itemId: f.itemId, blob: f.blob })));
       workspaceRepository.set(result.data);
-      setMessage(`完整备份已恢复（含 ${result.files.length} 个书籍文件）。`);
+      setMessage(`完整备份已恢复（含 ${result.files.length} 个书籍文件、${result.driftWallFiles.length} 张浮光墙图片）。`);
     } catch (err) {
       setMessage(`恢复失败：${err instanceof Error ? err.message : "文件读取错误"}。`);
     } finally {
@@ -214,7 +221,7 @@ export function FinalSettings() {
 
         <GlassPanel className="settings-card">
           <SectionTitle><><Database /> 数据管理</></SectionTitle>
-          <p className="settings-copy">完整备份包含任务、项目、日历、笔记、工具、生活工具数据、本地设置和阅读清单的书籍文件，打包为一个 ZIP 文件。云盘同步需要外部服务凭据，当前版本提供本地完整备份，备份文件可手动上传到任意网盘。</p>
+          <p className="settings-copy">完整备份包含任务、项目、日历、笔记、工具、生活工具数据、本地设置、阅读清单的书籍文件与浮光墙图片，打包为一个 ZIP 文件。云盘同步需要外部服务凭据，当前版本提供本地完整备份，备份文件可手动上传到任意网盘。</p>
           <div className="data-actions">
             <button onClick={() => void downloadFull()} disabled={busy}><HardDriveDownload /> 完整备份</button>
             <button onClick={() => fullFile.current?.click()} disabled={busy}><HardDriveUpload /> 恢复完整备份</button>

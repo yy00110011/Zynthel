@@ -29,7 +29,7 @@ export async function launchResource(
 ): Promise<LauncherResult> {
   const deps = dependencies ?? defaultDependencies();
   if (deps.tauriInvoke) {
-    return deps.tauriInvoke("launch_resource", { request: { launch } });
+    return deps.tauriInvoke("launch-resource", { request: { launch } });
   }
   if (launch.type === "website") {
     deps.openWindow(launch.url, "_blank", "noopener,noreferrer");

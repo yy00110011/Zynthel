@@ -34,7 +34,12 @@ pub fn run() {
       }
       Ok(())
     })
-    .invoke_handler(tauri::generate_handler![launch::launch_resource, launch::detect_applications, launch::list_android_apps])
+    .invoke_handler(tauri::generate_handler![
+      launch::launch_resource,
+      launch::detect_applications,
+      launch::list_android_apps,
+      launch::find_local_app
+    ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }

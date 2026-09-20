@@ -1,3 +1,4 @@
+import { validateImageContent } from "./image-content";
 import { type WorkspaceData, workspaceSchema } from "./schema";
 
 export type ImportResult =
@@ -24,6 +25,8 @@ export function importWorkspace(value: string): ImportResult {
 /* ===== 完整备份（ZIP：workspace.json + 书籍文件） ===== */
 
 export type FullBackupFile = { bookId: string; fileName: string; blob: Blob };
+/** 浮光墙图片：以 item id 为键，存 drift-wall/ 目录。 */
+export type FullBackupDriftWallFile = { itemId: string; blob: Blob };
 
 const BACKUP_MARKER = "zynthel-full-backup";
 
@@ -32,6 +35,18 @@ const MAX_BACKUP_ZIP_BYTES = 200 * 1024 * 1024; // ZIP 文件总大小上限 200
 const MAX_BACKUP_FILES = 500; // 书籍文件数量上限
 const MAX_BACKUP_FILE_BYTES = 40 * 1024 * 1024; // 单个书籍文件解压上限 40MB
 const MAX_BACKUP_TOTAL_BYTES = 150 * 1024 * 1024; // 全部书籍文件解压总量上限 150MB
+
+// 浮光墙图片的独立限制（处理后的缩略图很小，但仍设上限防止异常备份）
+const MAX_DRIFT_WALL_FILES = 400;
+const MAX_DRIFT_WALL_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_DRIFT_WALL_TOTAL_BYTES = 80 * 1024 * 1024;
+const DRIFT_WALL_IMAGE_EXTENSIONS = new Set(["webp", "png", "jpg", "jpeg"]);
+
+function driftWallExtension(type: string): string {
+  if (type === "image/jpeg") return "jpg";
+  if (type === "image/png") return "png";
+  return "webp";
+}
 
 export type FullBackupParseError =
   | "invalid-zip"
@@ -42,17 +57,25 @@ export type FullBackupParseError =
   | "total-too-large";
 
 export type FullBackupParseResult =
-  | { ok: true; data: WorkspaceData; files: FullBackupFile[] }
+  | { ok: true; data: WorkspaceData; files: FullBackupFile[]; driftWallFiles: FullBackupDriftWallFile[] }
   | { ok: false; error: FullBackupParseError };
 
-/** 打包完整备份：工作区数据 JSON + 本地书籍文件（IndexedDB blob） */
-export async function buildFullBackup(data: WorkspaceData, files: FullBackupFile[]): Promise<Blob> {
+/** 打包完整备份：工作区数据 JSON + 本地书籍文件 + 浮光墙图片（均为 IndexedDB blob） */
+export async function buildFullBackup(
+  data: WorkspaceData,
+  files: FullBackupFile[],
+  driftWallFiles: FullBackupDriftWallFile[] = [],
+): Promise<Blob> {
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
   zip.file("backup.json", JSON.stringify({ marker: BACKUP_MARKER, exportedAt: new Date().toISOString(), workspace: workspaceSchema.parse(data) }, null, 2));
   if (files.length) {
     const folder = zip.folder("books")!;
     for (const f of files) folder.file(`${f.bookId}__${f.fileName.replace(/[/\\]/g, "_")}`, f.blob);
+  }
+  if (driftWallFiles.length) {
+    const folder = zip.folder("drift-wall")!;
+    for (const f of driftWallFiles) folder.file(`${f.itemId}.${driftWallExtension(f.blob.type)}`, f.blob);
   }
   return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
 }
@@ -129,7 +152,48 @@ export async function parseFullBackup(file: Blob): Promise<FullBackupParseResult
     if (totalBytes > MAX_BACKUP_TOTAL_BYTES) return { ok: false, error: "total-too-large" };
     files.push({ bookId, fileName, blob });
   }
-  return { ok: true, data: parsed.data, files };
+
+  // 6. 浮光墙图片：只恢复 workspace.driftWallItems 中「有图片」的项；id 必须匹配、去重、
+  //    扩展名白名单、类型必须为 image/*、限制单张与总量（沿用同一套错误码，不削弱 ZIP 防护）。
+  const driftWallIds = new Set(
+    parsed.data.driftWallItems.filter((item) => item.imageData !== null).map((item) => item.id),
+  );
+  const wallEntries: { itemId: string; extension: string; entry: import("jszip").JSZipObject }[] = [];
+  const seenWallIds = new Set<string>();
+  zip.folder("drift-wall")?.forEach((relativePath: string, entry: import("jszip").JSZipObject) => {
+    if (entry.dir) return;
+    const dot = relativePath.lastIndexOf(".");
+    if (dot <= 0) return;
+    const itemId = relativePath.slice(0, dot);
+    const extension = relativePath.slice(dot + 1).toLowerCase();
+    if (itemId.length > 200) return;
+    if (!driftWallIds.has(itemId)) return; // 孤儿文件 / 非图片项
+    if (seenWallIds.has(itemId)) return; // 重复 id 只取第一个
+    if (!DRIFT_WALL_IMAGE_EXTENSIONS.has(extension)) return; // 只接受位图扩展名
+    seenWallIds.add(itemId);
+    wallEntries.push({ itemId, extension, entry });
+  });
+  if (wallEntries.length > MAX_DRIFT_WALL_FILES) return { ok: false, error: "too-many-files" };
+
+  const driftWallFiles: FullBackupDriftWallFile[] = [];
+  let wallBytes = 0;
+  for (const { itemId, extension, entry } of wallEntries) {
+    let blob: Blob;
+    try {
+      blob = await entry.async("blob");
+    } catch {
+      return { ok: false, error: "invalid-zip" };
+    }
+    // 内容真实性校验：扩展名与 JSZip 推断的 MIME 都可以伪造，只有文件头是事实。
+    // 真正是 PNG/JPEG/WebP 才放行；MIME 为空时只看内容；MIME/扩展名与内容冲突则拒绝。
+    const content = await validateImageContent(blob, { expectedExtension: extension });
+    if (!content.ok) return { ok: false, error: "unsupported-data" };
+    if (blob.size > MAX_DRIFT_WALL_FILE_BYTES) return { ok: false, error: "file-too-large" };
+    wallBytes += blob.size;
+    if (wallBytes > MAX_DRIFT_WALL_TOTAL_BYTES) return { ok: false, error: "total-too-large" };
+    driftWallFiles.push({ itemId, blob });
+  }
+  return { ok: true, data: parsed.data, files, driftWallFiles };
 }
 
 /** 触发浏览器下载备份文件（Tauri WebView 落到系统下载目录） */

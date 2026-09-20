@@ -15,6 +15,7 @@ const launchTypeLabel = (type: ToolItem["launch"]["type"]) => ({
   "macos-app": "macOS 应用",
   "android-app": "Android 应用",
   "local-path": "本地路径",
+  "local-app": "本机应用",
   "custom-command": "自定义命令",
 })[type];
 

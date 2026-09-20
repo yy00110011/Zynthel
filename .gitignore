@@ -2,6 +2,7 @@ node_modules/
 .next/
 out/
 src-tauri/target/
+src-tauri/gen/android/app/.cxx/
 coverage/
 playwright-report/
 test-results/
@@ -10,6 +11,7 @@ test-results/
 *.log
 *.tsbuildinfo
 work/
+screenshots/
 
 # 环境变量与密钥
 .env
@@ -17,6 +19,7 @@ work/
 .env.*.local
 *.pem
 *.key
+*.p12
 
 # IDE 配置
 .idea/
@@ -27,22 +30,28 @@ work/
 src-tauri/gen/android/build/
 src-tauri/gen/android/app/build/
 src-tauri/gen/android/.gradle/
+src-tauri/gen/android/**/.gradle/
 src-tauri/gen/android/**/.kotlin/
 src-tauri/gen/android/local.properties
 src-tauri/gen/android/keystore.properties
 *.jks
+*.jks.old
+*.jks.bak
 *.keystore
+*.aab
+*.apk
+*.apk.idsig
+
+# 桌面端构建产物（安装包不进 git）
+src-tauri/target/**/release/bundle/
+*.msi
+*.exe
 
 # 临时备份目录
 *.bak/
 src-tauri/gen/android.bak*/
+*.versionsBackup/
 
-# 构建产物 APK（二进制不进 git）
-*.apk
-*.apk.idsig
-
-# 开发预览截图
-screenshots/
-
-*.jks.old
-*.jks.bak
+# 内部审查包（内嵌全量源码，仅本地/离线分发，不进仓库）
+*-backend-bundle.md
+*-backend-source-bundle.md

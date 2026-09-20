@@ -1,2 +1,37 @@
 .v2-list{padding:16px}.v2-task{display:grid;grid-template-columns:32px 1fr 100px 32px;align-items:center;gap:8px;padding:12px;border-bottom:1px solid rgba(255,255,255,.06);border-left:3px solid #a39fa8}.v2-task.priority-high{border-left-color:#ff8da1}.v2-task.priority-urgent{border-left-color:#ff5f78}.v2-task button,.v2-task select{background:transparent;border:0;color:inherit}.kanban-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.kanban-column{min-height:400px;padding:16px}.kanban-column h2{font-size:13px}.kanban-column>button{display:block;width:100%;margin:8px 0;padding:12px;text-align:left;border:1px solid rgba(255,255,255,.06);border-radius:8px;background:rgba(28,25,33,.5);color:inherit}.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);padding:16px}.calendar-grid>div{min-height:110px;padding:8px;border:1px solid rgba(255,255,255,.05)}.calendar-grid .today{border-color:#ffb5c5}.calendar-grid span{display:block;margin-top:6px;padding:4px;background:rgba(255,181,197,.1);font-size:10px}.notes-layout{display:grid;grid-template-columns:280px 1fr;min-height:620px}.notes-layout aside{padding:16px;border-right:1px solid rgba(255,255,255,.06)}.notes-layout aside>button{display:block;width:100%;margin-bottom:8px;padding:10px;text-align:left;background:transparent;border:0;color:inherit}.notes-layout aside .active{background:rgba(255,181,197,.12)}.notes-layout main{display:flex;flex-direction:column;padding:28px}.notes-layout input,.notes-layout textarea{background:transparent;border:0;color:inherit;outline:0}.notes-layout input{font-size:30px}.notes-layout textarea{flex:1;margin-top:20px;resize:none}.focus-zen{min-height:calc(100vh - 90px);display:grid;place-items:center}.focus-zen .glass-panel{width:min(720px,90%);padding:60px;text-align:center}.focus-zen strong{display:block;font:100 120px/1 SFMono-Regular,monospace;text-shadow:0 0 20px rgba(255,181,197,.15)}.focus-zen select{margin:28px;background:transparent;color:inherit;border:1px solid rgba(255,255,255,.1);padding:10px}.focus-zen button{margin:8px;padding:10px 24px;border:1px solid rgba(255,181,197,.3);background:transparent;color:inherit;border-radius:8px}
 .app-frame{--sidebar:240px}.sidebar{width:240px;backdrop-filter:blur(60px) saturate(180%);background:rgba(15,14,19,.65)}.topbar{height:64px}.glass-panel{border-radius:16px;border-color:rgba(255,255,255,.06);background:rgba(28,25,33,.5);backdrop-filter:blur(30px) saturate(150%);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 8px 32px rgba(0,0,0,.4)}.quick-launch-grid.single-service{grid-template-columns:1fr}.single-service .quick-service{display:grid;grid-template-columns:52px 1fr auto;align-items:center;text-align:left;padding:16px}.single-service .service-icon{grid-row:1/3}.single-service button{grid-column:3;grid-row:1/3;width:130px}.upcoming-list{display:grid;gap:8px}.upcoming-list>div{display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid rgba(255,255,255,.06)}.upcoming-list time{color:#ffb5c5;font:11px SFMono-Regular,monospace}@media(max-width:900px){.app-frame{--sidebar:64px}.sidebar{width:64px}}@media(max-width:699px){.workspace:after{content:"Zynthel 需要更大的屏幕空间以维持共鸣";position:fixed;inset:0;z-index:999;display:grid;place-items:center;background:#0f0e13;color:#fdfbfd;font-size:18px}.workspace>*{visibility:hidden}}
+/* ===== 完整日历（calendar-page） ===== */
+.calendar-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.calendar-toolbar button{display:grid;place-items:center;width:36px;height:36px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(28,25,33,.5);color:inherit;cursor:pointer}
+.calendar-toolbar button:hover{border-color:rgba(255,181,197,.4)}
+.calendar-toolbar .calendar-title{font-size:18px;min-width:150px;text-align:center;letter-spacing:1px}
+.calendar-toolbar .calendar-today-btn{width:auto;padding:0 16px}
+.calendar-full{padding:0;overflow:hidden}
+.calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid rgba(255,255,255,.08)}
+.calendar-weekdays span{padding:10px 8px;text-align:center;font-size:12px;color:rgba(253,251,253,.55)}
+.calendar-grid-full{display:grid;grid-template-columns:repeat(7,1fr);padding:0;gap:0}
+.calendar-grid-full .calendar-day{min-height:104px;padding:8px;border-right:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;position:relative;display:flex;flex-direction:column;transition:background .15s}
+.calendar-grid-full .calendar-day:nth-child(7n){border-right:0}
+.calendar-grid-full .calendar-day:hover{background:rgba(255,181,197,.06)}
+.calendar-grid-full .calendar-day.out-month{opacity:.35}
+.calendar-grid-full .calendar-day.today{background:rgba(255,181,197,.12)}
+.calendar-grid-full .calendar-day.today .calendar-day-head strong{color:#ffb5c5}
+.calendar-grid-full .calendar-day.adding{border-color:#ffb5c5;background:rgba(255,181,197,.08)}
+.calendar-day-head{display:flex;align-items:flex-start;gap:4px;margin-bottom:4px}
+.calendar-day-head strong{font-size:14px;line-height:1.2;flex-shrink:0}
+.calendar-festivals{display:flex;flex-wrap:wrap;gap:2px}
+.calendar-festivals em{font-style:normal;font-size:9px;line-height:1.3;padding:1px 4px;border-radius:4px;background:rgba(255,141,161,.2);color:#ffb5c5;white-space:nowrap}
+.calendar-festivals em.lunar{background:rgba(255,205,120,.18);color:#ffd27a}
+.calendar-day-todos{display:flex;flex-direction:column;gap:3px;overflow:hidden;flex:1}
+.calendar-todo{display:flex;align-items:center;gap:4px;font-size:11px;padding:2px 4px;border-radius:5px;background:rgba(255,181,197,.08)}
+.calendar-todo.done span{text-decoration:line-through;opacity:.5}
+.calendar-todo span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:0;padding:0;background:transparent;font-size:11px}
+.calendar-todo-check{width:15px;height:15px;flex-shrink:0;display:grid;place-items:center;border:1px solid rgba(255,181,197,.5);border-radius:4px;background:transparent;color:#ffb5c5;font-size:10px;cursor:pointer;padding:0;line-height:1}
+.calendar-todo.done .calendar-todo-check{background:rgba(255,181,197,.4);color:#fff}
+.calendar-todo-del{flex-shrink:0;display:grid;place-items:center;border:0;background:transparent;color:rgba(253,251,253,.4);cursor:pointer;padding:0;opacity:0;transition:opacity .15s}
+.calendar-todo:hover .calendar-todo-del{opacity:1}
+.calendar-todo-del svg{width:12px;height:12px}
+.calendar-empty-hint{color:rgba(253,251,253,.2);font-size:10px}
+.calendar-add-form{display:flex;gap:4px;margin-top:4px}
+.calendar-add-form input{flex:1;min-width:0;padding:6px 8px;border:1px solid rgba(255,181,197,.4);border-radius:6px;background:rgba(15,14,19,.6);color:inherit;font-size:12px;outline:0}
+.calendar-add-form button{display:grid;place-items:center;width:30px;border:1px solid rgba(255,181,197,.4);border-radius:6px;background:rgba(255,181,197,.15);color:#ffb5c5;cursor:pointer}

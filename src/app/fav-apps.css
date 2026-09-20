@@ -1,0 +1,45 @@
+/* 首页「常用应用」内置快捷入口（虎扑 / 汽水音乐 / 豆包）。
+   点击时优先打开本机已安装的客户端，未安装则回落官方 HTTPS 网页；不打包任何第三方客户端。 */
+.fav-apps{max-width:1080px;margin:14px 0 0;padding:18px 20px}
+.fav-apps>header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.fav-apps>header h2{font-size:15px;margin:0;color:var(--text);font-weight:600}
+.fav-apps-tag{font-size:10px;color:var(--muted);padding:2px 9px;border:1px solid rgba(120,144,162,.32);border-radius:999px;white-space:nowrap}
+.fav-apps-row{display:flex;gap:12px;flex-wrap:wrap}
+.fav-app-card{flex:1 1 180px;min-width:0;display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
+.fav-app-card:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(75,122,139,.16)}
+.fav-app-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:linear-gradient(150deg,var(--accent),color-mix(in srgb,var(--accent) 70%,transparent));color:#fff;flex:none}
+.fav-app-name{font-size:14px;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;text-align:left}
+/* 来源标签：本地应用用强调色实心，网页用低对比描边，一眼能看出会从哪里打开。 */
+.fav-app-source{font-style:normal;font-size:10px;line-height:1;padding:3px 8px;border-radius:999px;flex:none;color:var(--muted);border:1px solid rgba(120,144,162,.3);white-space:nowrap}
+.fav-app-card.has-local .fav-app-source{color:#fff;background:var(--accent);border-color:transparent}
+.fav-app-card.has-local .fav-app-icon{background:linear-gradient(150deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#fff))}
+
+/* 首页网格是四行紧凑布局，日历小组件的内容比可视区高：
+   放行内部滚动，避免 mini-calendar 被 overflow:hidden 裁掉（与内测版同一处理）。 */
+.final-home>.calendar-panel{overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+
+/* 并入首页网格：整行铺满，作为首页最后一条内容，与上方面板同宽同间距。 */
+/* overflow 需放行：首页另有 `.final-home>section{overflow:hidden}`，会把卡片悬停的投影裁掉。 */
+.final-home>.fav-apps{grid-column:1 / -1;max-width:none;margin:0;padding:16px 18px;overflow:visible}
+.final-home>.fav-apps .fav-apps-row{gap:10px}
+.final-home>.fav-apps .fav-app-card{flex:1 1 150px;padding:12px 14px}
+
+/* 桌面宽屏：≥1440px 且为鼠标精确指针（真桌面/Windows）时，适度放大首页内容宽度，
+   但不无限拉伸正文。Android 平板（coarse pointer）不会命中此规则。 */
+@media (min-width:1440px) and (hover:hover) and (pointer:fine){
+  .final-home{max-width:1280px}
+  .fav-apps{max-width:1280px}
+}
+
+/* 宽屏网格原本是「三行 + 固定高度」，且常用应用在网格之外（要滚动才看得到）。
+   并入网格后变为四行：**前三行最小值与比例保持原样不变**（避免压缩既有面板），
+   第四行由常用应用自身高度决定（auto）。950px 以下窗口放不下时才自然滚动。 */
+@media (min-width:1100px){
+  .final-home{
+    /* 用 max() 兜底：窗口够高时正好一屏；窗口偏矮时保底 740px（宁可轻微滚动，也不压缩既有面板）。 */
+    height:max(calc(100vh - 118px), 740px);
+    grid-template-rows:minmax(150px,auto) minmax(180px,1fr) minmax(220px,1.2fr) auto;
+  }
+  .final-home>.fav-apps{padding:14px 18px}
+  .final-home>.fav-apps>header{margin-bottom:10px}
+}

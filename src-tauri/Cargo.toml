@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Zynthel — personal workspace terminal"
 authors = ["Zynthel Contributors"]
 license = "MIT"
-repository = "https://github.com/zynthel/zynthel"
+repository = "https://github.com/yy00110011/Zynthel"
 edition = "2021"
 rust-version = "1.77.2"
 

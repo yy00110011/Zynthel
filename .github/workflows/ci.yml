@@ -1,0 +1,61 @@
+name: CI
+
+# 跨平台基础校验：类型检查、Lint、单元测试、前端生产构建、Rust 编译检查。
+# Windows 专属测试（windows_rejects_custom_command）在 build-windows.yml 中执行。
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint / Typecheck / Test / Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      - name: Next.js production build
+        run: pnpm build
+
+      - name: Cargo check (desktop / Android config)
+        working-directory: src-tauri
+        run: cargo check

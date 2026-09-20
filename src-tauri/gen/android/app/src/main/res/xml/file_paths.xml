@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-  <external-path name="my_images" path="." />
-  <cache-path name="my_cache_images" path="." />
+  <!-- 收紧说明：FileProvider 仍被 Tauri 生成的 RustWebChromeClient 使用
+       （createImageFileUri() 调 FileProvider.getUriForFile，authority = ${applicationId}.fileprovider）。
+       它唯一需要的目录是 activity.getExternalFilesDir(Environment.DIRECTORY_PICTURES)，
+       即应用私有外存 .../Android/data/<pkg>/files/Pictures，对应 <external-files-path>。
+       因此移除原先开放整个外存根目录的 <external-path path="." /> 与未使用的 <cache-path path="." />，
+       不再为任意 external storage 路径生成 content URI。 -->
+  <external-files-path name="pictures" path="Pictures" />
 </paths>

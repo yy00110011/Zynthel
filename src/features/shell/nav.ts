@@ -1,10 +1,10 @@
-// 侧边栏导航：固定 17 项，分「核心办公区」(9) 和「生活工具区」(8) 两组。
+// 侧边栏导航：固定 18 项，分「核心办公区」(10) 和「生活工具区」(8) 两组。
 // 禁止用户增删入口、禁止第三方快捷入口；仅允许调整显示顺序。
 
 import type { LucideIcon } from "lucide-react";
 import {
   Home, CheckSquare, FolderKanban, CalendarDays, StickyNote,
-  Timer, Wrench, Sparkles, Settings,
+  Timer, Wrench, Sparkles, Settings, Orbit,
   Wallet, Dumbbell, NotebookPen, BookOpenCheck, Repeat,
   Hourglass, Library, KeyRound,
 } from "lucide-react";
@@ -26,8 +26,9 @@ export interface NavGroupMeta {
 
 // 固定顺序（默认顺序）。sidebarOrder 持久化仅用于调整显示顺序。
 export const NAV_ITEMS: NavItem[] = [
-  // 核心办公区（9）
+  // 核心办公区（10）
   { id: "home", href: "/", label: "首页", icon: Home, group: "core" },
+  { id: "drift-wall", href: "/drift-wall", label: "浮光墙", icon: Orbit, group: "core" },
   { id: "tasks", href: "/tasks", label: "任务", icon: CheckSquare, group: "core" },
   { id: "projects", href: "/projects", label: "项目", icon: FolderKanban, group: "core" },
   { id: "calendar", href: "/calendar", label: "日历", icon: CalendarDays, group: "core" },

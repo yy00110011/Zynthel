@@ -1,0 +1,78 @@
+name: Build Android (regression)
+
+# Android 回归构建闸门：保证 Windows 改造后 Android 仍可正常编译出 APK。
+# 默认构建未签名 debug APK（无需密钥）。
+# 如需发布签名 release AAB/APK，请在仓库 Secrets 中配置签名材料，
+# 并将最后一步改为 `pnpm tauri android build --apk`（release 需签名配置）。
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  ANDROID_HOME: ${{ github.workspace }}/android-sdk
+  ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+  # 前端 detectPlatform() 的显式兜底：保证即使 UA 探测异常也按 Android 渲染。
+  # 不设也能跑（会回退到 navigator.userAgent 判定），显式设置只为消除不确定性。
+  NEXT_PUBLIC_TARGET_PLATFORM: android
+
+jobs:
+  android:
+    name: Android APK (regression)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Android SDK + NDK
+        run: |
+          SDK="$ANDROID_HOME"
+          mkdir -p "$SDK/cmdline-tools"
+          curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cli.zip
+          unzip -q cli.zip -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" \
+            "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$SDK/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: Setup Rust (Android targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # --apk：产出 APK 而非 AAB；--debug：未签名 debug 变体（免密钥）。
+      - name: Build debug APK (regression)
+        run: pnpm tauri android build --apk --debug
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zynthel-android-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: ignore

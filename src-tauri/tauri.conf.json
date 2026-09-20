@@ -29,7 +29,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app"],
+    "targets": ["app", "msi", "nsis"],
     "macOS": {
       "minimumSystemVersion": "12.0"
     },

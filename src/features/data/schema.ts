@@ -70,6 +70,8 @@ const androidAppLaunchSchema = z.object({
   fallbackUrl: z.string().url().optional(),
 });
 const pathLaunchSchema = z.object({ type: z.literal("local-path"), path: z.string() });
+/** 后端确认过的本机应用：路径必须来自 Rust 侧 find_local_app 的扫描结果，不能手工伪造。 */
+const localAppLaunchSchema = z.object({ type: z.literal("local-app"), path: z.string() });
 const commandLaunchSchema = z.object({
   type: z.literal("custom-command"),
   executable: z.string().min(1),
@@ -81,6 +83,7 @@ export const launchMethodSchema = z.discriminatedUnion("type", [
   appLaunchSchema,
   androidAppLaunchSchema,
   pathLaunchSchema,
+  localAppLaunchSchema,
   commandLaunchSchema,
 ]);
 
@@ -91,6 +94,23 @@ export const toolSchema = z.object({
   launch: launchMethodSchema,
   order: z.number().int().min(0),
   lastOpenedAt: timestamp.nullable(),
+});
+
+// 浮光墙（DriftWall）：个人动态图片墙的一条圆形项。
+// - imageData === null 表示空白占位圆（等待用户添加图片）。
+// - imageData 非空时保存一张「小尺寸缩略图 dataURL」，用于同步渲染；
+//   原始处理后的图片 Blob 保存在 IndexedDB（见 lib/drift-wall-storage.ts），
+//   避免把高清原图塞进 localStorage。
+// - x / y 为归一化坐标（0~1），改变窗口尺寸后构图仍能保持。
+export const driftWallItemSchema = z.object({
+  id: z.string().min(1),
+  imageData: z.string().nullable().default(null),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  size: z.number().positive().max(240),
+  driftSeed: z.number(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
 });
 
 export const settingsSchema = z.object({
@@ -148,6 +168,8 @@ export const workspaceSchema = z.object({
   countdownEvents: z.array(countdownEventSchema).default([]),
   countdownCategories: z.array(countdownCategorySchema).default([]),
   books: z.array(bookSchema).default([]),
+  // 浮光墙（Windows 版个人动态图片墙）
+  driftWallItems: z.array(driftWallItemSchema).default([]),
   vaultMeta: vaultMetaSchema.nullable().default(null),
   vaultEntries: z.array(vaultEntrySchema).default([]),
   updatedAt: timestamp,
@@ -162,6 +184,7 @@ export type CalendarEvent = z.infer<typeof calendarEventSchema>;
 export type NoteItem = z.infer<typeof noteSchema>;
 export type FocusSession = z.infer<typeof focusSessionSchema>;
 export type Settings = z.infer<typeof settingsSchema>;
+export type DriftWallItem = z.infer<typeof driftWallItemSchema>;
 
 export type PlatformKind = "android" | "desktop";
 
@@ -184,6 +207,7 @@ export function launchDetail(launch: LaunchMethod): string {
     case "android-app":
       return launch.packageName;
     case "local-path":
+    case "local-app":
       return launch.path;
     case "custom-command":
       return [launch.executable, ...launch.args].join(" ");
@@ -228,6 +252,7 @@ export function createDefaultWorkspace(
     countdownEvents: [],
     countdownCategories: [],
     books: [],
+    driftWallItems: [],
     vaultMeta: null,
     vaultEntries: [],
     updatedAt: now,

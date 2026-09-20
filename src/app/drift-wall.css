@@ -1,0 +1,68 @@
+/* 浮光墙（DriftWall）—— Windows 版个人动态图片墙。
+   视觉沿用 Zynthel：渐变 / 半透明 / 柔和 / 简洁；颜色全部走主题 CSS 变量。 */
+
+.drift-wall-page{display:flex;flex-direction:column;gap:14px;height:100%;min-height:0}
+.drift-wall-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex:none}
+.drift-wall-head h1{margin:0;font-size:24px;color:var(--text)}
+.drift-wall-head p{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.drift-add-btn{display:inline-flex;align-items:center;gap:7px;flex:none;padding:9px 16px;border:1px solid color-mix(in srgb,var(--accent) 42%,transparent);border-radius:12px;background:linear-gradient(150deg,var(--accent),color-mix(in srgb,var(--accent) 68%,transparent));color:#fff;font-size:13px;font-weight:500;cursor:pointer;box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 26%,transparent);transition:transform .16s ease,box-shadow .16s ease}
+.drift-add-btn:hover{transform:translateY(-1px);box-shadow:0 14px 32px color-mix(in srgb,var(--accent) 34%,transparent)}
+.drift-message{flex:none;padding:9px 14px;border-radius:11px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);font-size:12.5px}
+
+/* 洞洞板画布：极低透明度的错位小圆点；跟随主题色，不做拟物纹理。 */
+.drift-board{position:relative;flex:1 1 auto;min-height:min(64vh,620px);border-radius:20px;overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--accent) 12%,transparent);
+  background-color:color-mix(in srgb,var(--surface) 60%,transparent);
+  background-image:
+    radial-gradient(circle,color-mix(in srgb,var(--accent) 20%,transparent) 1.4px,transparent 1.7px),
+    radial-gradient(circle,color-mix(in srgb,var(--accent) 12%,transparent) 1.4px,transparent 1.7px);
+  background-size:30px 30px,30px 30px;
+  background-position:0 0,15px 15px;
+  box-shadow:inset 0 1px rgba(255,255,255,.5)}
+.drift-file-input{display:none}
+
+/* 单个圆形项：外层负责定位与缩放，内层负责漂浮位移（两个 transform 互不干扰）。 */
+.drift-item{position:absolute;border-radius:50%;cursor:grab;touch-action:none;user-select:none;
+  transition:transform .18s ease,box-shadow .18s ease}
+.drift-float{display:block;width:100%;height:100%;border-radius:50%;
+  animation:drift-wall-float var(--drift-duration,6s) ease-in-out var(--drift-delay,0s) infinite}
+.drift-item:hover{transform:scale(1.06)}
+.drift-item:hover .drift-float{animation-play-state:paused}
+.drift-item.dragging{transform:scale(1.08);cursor:grabbing;z-index:5}
+.drift-item.dragging .drift-float{animation:none}
+.drift-board.reduced .drift-float{animation:none}
+
+/* 空白占位圆：半透明柔和渐变、细边框、极轻阴影、中间一个很淡的 +。 */
+.drift-item.placeholder .drift-float{display:grid;place-items:center;color:color-mix(in srgb,var(--accent) 55%,transparent);
+  background:linear-gradient(150deg,color-mix(in srgb,var(--accent) 13%,transparent),color-mix(in srgb,var(--accent) 5%,transparent));
+  border:1.5px dashed color-mix(in srgb,var(--accent) 34%,transparent);
+  box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 12%,transparent)}
+.drift-item.placeholder:hover .drift-float{background:linear-gradient(150deg,color-mix(in srgb,var(--accent) 20%,transparent),color-mix(in srgb,var(--accent) 9%,transparent));border-color:color-mix(in srgb,var(--accent) 52%,transparent)}
+.drift-placeholder-plus{display:grid;place-items:center;opacity:.7}
+
+/* 有图片的圆：圆形裁切，不拉伸变形。 */
+.drift-item.has-image .drift-float{overflow:hidden;border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 14px 32px rgba(75,122,139,.22),inset 0 1px rgba(255,255,255,.6)}
+.drift-item.has-image:hover .drift-float{box-shadow:0 20px 44px rgba(75,122,139,.3)}
+.drift-item.dragging .drift-float{box-shadow:0 26px 52px rgba(75,122,139,.36)}
+.drift-item img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;pointer-events:none}
+
+/* 漂浮关键帧：Y 轴为主（±amplitude），X 轴轻微呼吸（0→sway）。 */
+@keyframes drift-wall-float{
+  0%{transform:translate(0,calc(var(--drift-amp,7px) * -1))}
+  50%{transform:translate(var(--drift-sway,2px),var(--drift-amp,7px))}
+  100%{transform:translate(0,calc(var(--drift-amp,7px) * -1))}
+}
+@media (prefers-reduced-motion:reduce){.drift-float{animation:none!important}}
+
+/* 右键轻量菜单 */
+.drift-menu{position:absolute;z-index:20;min-width:150px;padding:6px;border-radius:12px;
+  background:rgba(255,255,255,.92);border:1px solid rgba(120,144,162,.28);
+  box-shadow:0 18px 44px rgba(75,122,139,.24);backdrop-filter:blur(18px);display:flex;flex-direction:column;gap:2px}
+.drift-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:12.5px;text-align:left;cursor:pointer}
+.drift-menu button:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.drift-menu button.danger{color:#c9586a}
+.drift-menu button.danger:hover{background:rgba(201,88,106,.12)}
+.drift-menu-label{display:flex;align-items:center;gap:8px;padding:6px 10px 2px;font-size:11px;color:var(--muted)}
+.drift-menu-sizes{display:flex;gap:6px;padding:2px 8px 6px}
+.drift-menu-sizes button{justify-content:center;padding:6px 0;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:8px;font-size:12px}

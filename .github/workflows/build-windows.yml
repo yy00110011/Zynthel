@@ -1,0 +1,87 @@
+name: Build Windows
+
+# 产出 Windows 桌面安装包（x64 为主，arm64 试构建）。
+# 本机（macOS）无法生成 Windows 二进制，须在 Windows 或本工作流中产出。
+# 未配置代码签名：默认产出未签名安装包（certificateThumbprint 为 null）。
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows (${{ matrix.arch }})
+    runs-on: windows-latest
+    # 失败策略必须绑定到 Job，且取自 matrix：只写在 matrix.include 里不会生效。
+    # 结果：x64 失败 → 整个 workflow 失败；arm64 失败 → 仅告警，不阻塞 x64 发布。
+    continue-on-error: ${{ matrix.continue-on-error }}
+    strategy:
+      fail-fast: false
+      matrix:
+        continue-on-error: [false]
+        include:
+          # 主目标：x64，必须成功。
+          - arch: x64
+            rust-target: x86_64-pc-windows-msvc
+            continue-on-error: false
+          # 试构建：arm64。若 Tauri 工具链在该 runner 上不稳定，
+          # 仅告警、不阻塞 x64 产物（continue-on-error）。
+          - arch: arm64
+            rust-target: aarch64-pc-windows-msvc
+            continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ matrix.arch }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # beforeBuildCommand (pnpm build) 会把 Next.js 前端构建到 ../out。
+      - name: Build installers (x64)
+        if: matrix.arch == 'x64'
+        run: pnpm tauri build --bundles nsis,msi
+
+      - name: Build installers (arm64)
+        if: matrix.arch == 'arm64'
+        run: pnpm tauri build --target aarch64-pc-windows-msvc --bundles nsis,msi
+
+      - name: Upload installer artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zynthel-windows-${{ matrix.arch }}
+          path: |
+            src-tauri/target/**/release/bundle/msi/*.msi
+            src-tauri/target/**/release/bundle/nsis/*.exe
+          if-no-files-found: ignore
+
+# 产物示例（x64）：
+#   src-tauri/target/release/bundle/msi/Zynthel_0.1.0_x64_en-US.msi
+#   src-tauri/target/release/bundle/nsis/Zynthel_0.1.0_x64-setup.exe

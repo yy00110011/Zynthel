@@ -9,7 +9,7 @@ describe("桌面启动适配器", () => {
     const tauriInvoke = vi.fn().mockResolvedValue({ ok: true });
     const fetchImpl = vi.fn();
     const result = await launchResource(localPath, { tauriInvoke, fetchImpl, openWindow: vi.fn() });
-    expect(tauriInvoke).toHaveBeenCalledWith("launch_resource", { request: { launch: localPath } });
+    expect(tauriInvoke).toHaveBeenCalledWith("launch-resource", { request: { launch: localPath } });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result).toEqual({ ok: true });
   });
