@@ -21,15 +21,23 @@ Zynthel 是一个 **local-first** 的个人工作台：日常要用的一堆小�
 
 ## 📸 界面预览
 
-| 首页（Android 真机） | 浮光墙 |
-| --- | --- |
-| ![首页](docs/screenshots/android-home.jpg) | ![浮光墙](docs/screenshots/drift-wall.png) |
+Android 真机截图：
 
-| 日历 | 主题与外观 |
+| 首页 | 浮光墙 |
 | --- | --- |
-| ![日历](docs/screenshots/calendar.png) | ![主题](docs/screenshots/android-settings.jpg) |
+| ![首页](docs/screenshots/android-home.jpg) | ![浮光墙](docs/screenshots/android-drift-wall.jpg) |
 
-更多截图见 [docs/screenshots/](docs/screenshots/)。
+| 设置（主题 / AI 配置） | 课程表 |
+| --- | --- |
+| ![设置](docs/screenshots/android-settings.jpg) | ![课程表](docs/screenshots/android-schedule.jpg) |
+
+| 阅读清单 | 桌面端 · 密码本 |
+| --- | --- |
+| ![阅读清单](docs/screenshots/android-reading.jpg) | ![密码本](docs/screenshots/vault.png) |
+
+桌面端（Windows 同款界面）：[首页](docs/screenshots/home.png) · [任务](docs/screenshots/tasks.png) · [日历](docs/screenshots/calendar.png) · [浮光墙](docs/screenshots/drift-wall.png) · [主题](docs/screenshots/themes.png)
+
+全部截图见 [docs/screenshots/](docs/screenshots/)。
 
 ## 🚀 功能
 
