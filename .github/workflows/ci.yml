@@ -41,6 +41,21 @@ jobs:
             src-tauri/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
 
+      # Linux runner 默认没有 Tauri 桌面端的系统依赖，缺 glib-2.0 会导致 cargo check 失败。
+      # 本仓库的发布平台是 Windows / Android，这里只是 Linux 上的编译冒烟检查。
+      - name: Install Linux dependencies (Tauri desktop)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 

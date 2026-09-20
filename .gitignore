@@ -55,3 +55,6 @@ src-tauri/gen/android.bak*/
 # 内部审查包（内嵌全量源码，仅本地/离线分发，不进仓库）
 *-backend-bundle.md
 *-backend-source-bundle.md
+
+# WorkBuddy 本地会话记忆（内部工作文件，不进仓库）
+.workbuddy/

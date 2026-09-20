@@ -238,9 +238,47 @@ Zynthel
 
 ## 📄 许可与商标
 
-[MIT License](LICENSE) · 第三方依赖见 [NOTICE.md](NOTICE.md)
+[MIT License](LICENSE) · 第三方依赖见 [NOTICE.md](NOTICE.md) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)（法定第三方声明，完整许可证文本在 [docs/licenses/](docs/licenses/)）
 
 `Zynthel` 已做过公开资料的初步商标检索（见 [docs/trademark-clearance-research.md](docs/trademark-clearance-research.md)）；该检索为事实收集，不构成法律意见。
+
+## ❤️ 致谢
+
+感谢所有参与和帮助 Zynthel 成长的人与工具。
+
+特别感谢：
+
+- **项目作者** —— Zynthel 的发起、产品构思、设计决策、开发推进与最终维护者。
+- **ChatGPT** —— 协助项目规划、技术分析、代码审查、安全审查、文档与发布流程整理。
+- **OpenAI Codex** —— 协助代码实现、项目开发、调试与工程化工作。
+- **WorkBuddy** —— 协助项目执行、代码修改、开源整理、构建与发布准备。
+- **Google Gemini** —— 在项目分析、方案讨论与辅助工作中提供支持。
+- **DeepSeek** —— 在开发与技术分析过程中提供辅助。
+- **腾讯元宝** —— 在项目开发与整理过程中提供辅助。
+
+同时感谢所有未来通过 Issue、Pull Request、测试、反馈和建议帮助改进 Zynthel 的社区贡献者。
+
+> 上述 AI 产品均为项目开发过程中使用的辅助工具，不构成 Zynthel 的版权所有者，也不代表 OpenAI、Google、DeepSeek、腾讯等公司对本项目有任何赞助、背书或联合发布关系。
+
+详细的项目架构、技术决策与贡献记录请参阅 [docs/CONTRIBUTIONS.md](docs/CONTRIBUTIONS.md) 与 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+
+## ❤️ Acknowledgements
+
+Thanks to everyone and every tool that helped Zynthel take shape.
+
+- **Project author** — originator of Zynthel, responsible for product concept, design decisions, development and final maintenance.
+- **ChatGPT** — assistance with project planning, technical analysis, code review, security review, documentation and release preparation.
+- **OpenAI Codex** — assistance with implementation, development, debugging and engineering work.
+- **WorkBuddy** — assistance with execution, code changes, open-source cleanup, build and release preparation.
+- **Google Gemini** — support in project analysis, design discussion and auxiliary work.
+- **DeepSeek** — assistance during development and technical analysis.
+- **腾讯元宝 (Tencent Yuanbao)** — assistance during development and project organization.
+
+Thanks as well to all future community contributors who improve Zynthel through issues, pull requests, testing, feedback and suggestions.
+
+> The AI products listed above are auxiliary tools used during development. They are not copyright holders of Zynthel, and their mention implies no sponsorship, endorsement or co-release by OpenAI, Google, DeepSeek, Tencent or any other company.
+
+See [docs/CONTRIBUTIONS.md](docs/CONTRIBUTIONS.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture, decision records and contribution history.
 
 ## ⚠️ 免责声明
 
